@@ -86,6 +86,93 @@ document.addEventListener("alpine:init", () => {
     integrationFilter: "",
     botForm: {},
 
+    // ---- v4.5: voice recording ----
+    recording: false,
+    recordingTimer: "0:00",
+    transcribing: false,
+    transcriptResult: null,
+    transcriptProvider: "",
+    _mediaRecorder: null,
+    _recordedChunks: [],
+    _recordingStart: 0,
+    _recordingInterval: null,
+
+    async toggleRecording() {
+      if (this.recording) return this.stopRecording();
+      // Pre-flight: tell the user up-front if they need to sign in. Saves
+      // the awkward "you talked for 10 minutes and now I'm telling you
+      // it's a paid feature" experience.
+      if (!this.cloudInfo?.logged_in) {
+        await this.loadCloudInfo();
+        if (!this.cloudInfo?.logged_in) {
+          alert("Audio transcription needs a Pro subscription. Sign in via Settings → autoMate Cloud.");
+          this.settingsOpen = true;
+          return;
+        }
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Prefer webm/opus (small + universal). Browsers that lack opus
+        // fall back to whatever they like; backend re-muxes via the ASR
+        // provider's supported formats, but the server's filename
+        // extension drives Tencent's VoiceFormat so leave it consistent.
+        const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus" : "";
+        this._mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+        this._recordedChunks = [];
+        this._mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) this._recordedChunks.push(e.data);
+        };
+        this._mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          this.uploadRecording();
+        };
+        this._mediaRecorder.start(1000);
+        this.recording = true;
+        this._recordingStart = Date.now();
+        this._recordingInterval = setInterval(() => {
+          const s = Math.floor((Date.now() - this._recordingStart) / 1000);
+          const m = Math.floor(s / 60);
+          this.recordingTimer = `${m}:${String(s % 60).padStart(2, "0")}`;
+        }, 500);
+      } catch (e) {
+        alert("Microphone access denied: " + e.message);
+      }
+    },
+
+    stopRecording() {
+      if (!this._mediaRecorder) return;
+      this._mediaRecorder.stop();
+      this.recording = false;
+      clearInterval(this._recordingInterval);
+    },
+
+    async uploadRecording() {
+      if (!this._recordedChunks.length) return;
+      const blob = new Blob(this._recordedChunks, { type: this._mediaRecorder.mimeType || "audio/webm" });
+      const ext = (blob.type.split(";")[0].split("/")[1] || "webm").replace(/[^a-z0-9]/gi, "");
+      const filename = `recording-${new Date().toISOString().replace(/[:.]/g, "-")}.${ext}`;
+      const fd = new FormData();
+      fd.append("file", blob, filename);
+      this.transcribing = true;
+      this.transcriptResult = null;
+      try {
+        const r = await fetch(hubBase() + "/api/audio/record", { method: "POST", body: fd });
+        if (!r.ok) {
+          const detail = await r.json().catch(() => ({ detail: r.statusText }));
+          this.transcriptResult = { error: detail.detail || `HTTP ${r.status}` };
+        } else {
+          this.transcriptResult = await r.json();
+          await this.loadFiles();
+          if (this.transcriptResult.note_id) await this.loadNotes();
+        }
+      } catch (e) {
+        this.transcriptResult = { error: e.message };
+      } finally {
+        this.transcribing = false;
+      }
+    },
+
     // ---- v4.4: update check ----
     updateInfo: null,
     updateBusy: false,

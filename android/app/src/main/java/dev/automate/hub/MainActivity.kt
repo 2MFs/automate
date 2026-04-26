@@ -1,17 +1,20 @@
 package dev.automate.hub
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.text.InputType
 import android.view.Menu
 import android.view.MenuItem
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -21,6 +24,8 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.preference.PreferenceManager
 import java.io.File
@@ -62,7 +67,35 @@ class MainActivity : AppCompatActivity() {
             setSupportZoom(false)
         }
         webView.webViewClient = WebViewClient()
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            // v4.5: forward MediaRecorder permission requests to Android.
+            // The SPA's record button calls navigator.mediaDevices.getUserMedia
+            // which routes through here when the page is loaded from
+            // file:///android_asset.
+            override fun onPermissionRequest(request: PermissionRequest) {
+                runOnUiThread {
+                    val wantsAudio = request.resources.any {
+                        it == PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                    }
+                    if (!wantsAudio) {
+                        request.deny(); return@runOnUiThread
+                    }
+                    val granted = ContextCompat.checkSelfPermission(
+                        this@MainActivity, Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) {
+                        request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+                    } else {
+                        pendingPermissionRequest = request
+                        ActivityCompat.requestPermissions(
+                            this@MainActivity,
+                            arrayOf(Manifest.permission.RECORD_AUDIO),
+                            REQ_RECORD_AUDIO,
+                        )
+                    }
+                }
+            }
+        }
 
         // v4.4: when the SPA navigates to an .apk URL (the auto-update
         // path), download it and pop the system installer.
@@ -205,7 +238,29 @@ class MainActivity : AppCompatActivity() {
         if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
 
+    private var pendingPermissionRequest: PermissionRequest? = null
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_RECORD_AUDIO) {
+            val req = pendingPermissionRequest ?: return
+            pendingPermissionRequest = null
+            val granted = grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                req.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+            } else {
+                req.deny()
+            }
+        }
+    }
+
     companion object {
         const val KEY_HUB = "hub_url"
+        const val REQ_RECORD_AUDIO = 4501
     }
 }

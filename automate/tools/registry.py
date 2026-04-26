@@ -86,6 +86,7 @@ def build_default_registry() -> ToolRegistry:
     from . import reminders as _reminders
     from . import memory as _memory
     from . import search as _search
+    from . import audio as _audio
     from . import integrations_adapter as _ia
 
     reg = ToolRegistry()
@@ -95,6 +96,7 @@ def build_default_registry() -> ToolRegistry:
     _files.register(reg)
     _reminders.register(reg)
     _memory.register(reg)
+    _audio.register(reg)             # audio.transcribe — first Pro-tier tool
     # Then the local executors and integrations.
     _shell.register(reg)
     _script.register(reg)

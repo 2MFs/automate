@@ -848,11 +848,45 @@
             <span x-text="filesUsage.count"></span> files. Any AI can fetch a file's bytes via <code>files.read</code>.
           </p>
         </div>
-        <label class="bg-zinc-900 text-white text-sm px-3 py-1.5 rounded-md cursor-pointer">
-          <span x-show="!fileUploading">+ Upload</span>
-          <span x-show="fileUploading">Uploading…</span>
-          <input type="file" multiple class="hidden" @change="uploadFiles($event)" />
-        </label>
+        <div class="flex gap-2">
+          <button @click="toggleRecording()"
+                  :class="recording ? 'bg-red-600 text-white animate-pulse' : 'bg-white border'"
+                  class="text-sm px-3 py-1.5 rounded-md">
+            <span x-show="!recording">🎙 Record</span>
+            <span x-show="recording">⏹ Stop (<span x-text="recordingTimer"></span>)</span>
+          </button>
+          <label class="bg-zinc-900 text-white text-sm px-3 py-1.5 rounded-md cursor-pointer">
+            <span x-show="!fileUploading">+ Upload</span>
+            <span x-show="fileUploading">Uploading…</span>
+            <input type="file" multiple class="hidden" @change="uploadFiles($event)" />
+          </label>
+        </div>
+      </div>
+
+      <!-- v4.5: voice transcription result panel -->
+      <div x-show="storageMode === 'connected' && (transcribing || transcriptResult)"
+           class="bg-white border rounded-xl p-4 mb-4">
+        <div x-show="transcribing" class="text-sm text-zinc-600">
+          <span class="animate-pulse">Transcribing</span> via
+          <span x-text="transcriptProvider || '...'"></span>…
+        </div>
+        <div x-show="transcriptResult && !transcriptResult.error" class="space-y-2">
+          <div class="flex items-baseline justify-between">
+            <div class="text-xs text-zinc-500">
+              Provider: <span x-text="transcriptResult?.provider"></span>
+              · <span x-text="transcriptResult?.ms + 'ms'"></span>
+              <span x-show="transcriptResult?.note_id">
+                · saved as note
+              </span>
+            </div>
+            <button @click="transcriptResult = null" class="text-xs text-zinc-400 hover:text-zinc-700">×</button>
+          </div>
+          <p class="text-sm whitespace-pre-wrap" x-text="transcriptResult?.text"></p>
+          <div x-show="transcriptResult?.vocabulary_used?.length" class="text-[10px] text-zinc-400">
+            Hot-words: <span x-text="(transcriptResult.vocabulary_used || []).join(', ')"></span>
+          </div>
+        </div>
+        <div x-show="transcriptResult?.error" class="text-sm text-red-600" x-text="transcriptResult.error"></div>
       </div>
       <div x-show="!files.length" class="bg-white border rounded-xl p-12 text-center text-zinc-400 text-sm">
         Drop files here or click Upload. Useful for big media, references, or anything you'll want an AI to fetch later.

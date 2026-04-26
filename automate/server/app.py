@@ -9,9 +9,9 @@ from fastapi.staticfiles import StaticFiles
 
 from ..version import __version__
 from .api import (
-    agent, auth, bots, connect, execute, extension, files, integrations,
-    memory, models, notes, oauth, push, reminders, sessions, system,
-    tools as tools_api,
+    agent, audio, auth, bots, connect, execute, extension, files,
+    integrations, memory, models, notes, oauth, push, reminders, sessions,
+    system, tools as tools_api,
 )
 from .state import AppState, build_state
 
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(push.router,          prefix="/api")
     app.include_router(bots.router,          prefix="/api")
     app.include_router(auth.router,          prefix="/api")
+    app.include_router(audio.router,         prefix="/api")
     app.include_router(oauth.router)  # /oauth/<id>/callback (no /api prefix)
 
     # Mount the static SPA last so /api/* still wins.
