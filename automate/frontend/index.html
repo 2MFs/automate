@@ -330,6 +330,45 @@
           </div>
         </div>
 
+        <!-- v4.5.6: Channels — bridge IM messages into the agent -->
+        <div class="pt-4 border-t">
+          <label class="block text-xs font-medium text-zinc-700 mb-1">Channels (WeChat / Telegram / ...)</label>
+          <p class="text-[11px] text-zinc-500 mb-2 leading-relaxed">
+            Messaging apps connect via an external gateway (we recommend
+            <a href="https://github.com/openclaw/openclaw" target="_blank" class="underline">OpenClaw</a>).
+            Paste these into the gateway so it knows where to deliver
+            messages — autoMate routes them to the agent and replies.
+          </p>
+          <div class="space-y-2 text-xs">
+            <div>
+              <div class="text-[10px] text-zinc-500">Inbox URL</div>
+              <div class="flex gap-2">
+                <input :value="bridgeInfo?.inbox_url || '...'" readonly
+                       class="flex-1 border rounded-md px-2 py-1.5 font-mono text-[11px] bg-zinc-50 min-w-0" />
+                <button @click="copyBridge('inbox_url')"
+                        class="text-[11px] border rounded-md px-2 hover:bg-zinc-50">Copy</button>
+              </div>
+            </div>
+            <div>
+              <div class="text-[10px] text-zinc-500">Bearer token</div>
+              <div class="flex gap-2">
+                <input :value="bridgeInfo?.token || '...'" readonly
+                       :type="bridgeTokenShown ? 'text' : 'password'"
+                       class="flex-1 border rounded-md px-2 py-1.5 font-mono text-[11px] bg-zinc-50 min-w-0" />
+                <button @click="bridgeTokenShown = !bridgeTokenShown"
+                        class="text-[11px] border rounded-md px-2 hover:bg-zinc-50"
+                        x-text="bridgeTokenShown ? 'Hide' : 'Show'"></button>
+                <button @click="copyBridge('token')"
+                        class="text-[11px] border rounded-md px-2 hover:bg-zinc-50">Copy</button>
+              </div>
+              <button @click="regenerateBridgeToken()"
+                      class="text-[10px] text-red-600 hover:underline mt-1">
+                Regenerate (existing gateways will stop working)
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- v4.5.2: storage location for the file vault -->
         <div class="pt-4 border-t">
           <label class="block text-xs font-medium text-zinc-700 mb-1">

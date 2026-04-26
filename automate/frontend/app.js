@@ -217,6 +217,33 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
+    // ---- v4.5.6: channels bridge ----
+    bridgeInfo: null,
+    bridgeTokenShown: false,
+
+    async loadBridge() {
+      try {
+        const info = await api("/api/channels/bridge");
+        // Compose the full URL the gateway will POST to. We can't infer
+        // a public hostname from the server side, so we anchor it to
+        // wherever the SPA is currently loaded from.
+        const base = (hubBase() || location.origin).replace(/\/$/, "");
+        this.bridgeInfo = { ...info, inbox_url: base + info.inbox_url_path };
+      } catch (e) {
+        this.bridgeInfo = null;        // local-only mode: no bridge to show
+      }
+    },
+    async copyBridge(field) {
+      if (!this.bridgeInfo?.[field]) return;
+      try { await navigator.clipboard.writeText(this.bridgeInfo[field]); }
+      catch (e) { /* clipboard blocked — silently fail; the input is selectable */ }
+    },
+    async regenerateBridgeToken() {
+      if (!confirm("Regenerate the bridge token? Any gateway using the old token will stop delivering messages until you update it there.")) return;
+      const r = await api("/api/channels/bridge/regenerate", "POST");
+      this.bridgeInfo = { ...this.bridgeInfo, token: r.token };
+    },
+
     // ---- v4.5.2: storage location ----
     storageInfo: null,
     storageForm: { path: "" },
@@ -688,6 +715,7 @@ document.addEventListener("alpine:init", () => {
         this.loadBots(),
         this.loadCloudInfo(),
         this.loadStorage(),
+        this.loadBridge(),
       ]);
       this.checkPushEnabled();
     },
