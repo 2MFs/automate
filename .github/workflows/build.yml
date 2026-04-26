@@ -221,7 +221,7 @@ jobs:
           body: |
             ## Install
 
-            **Standalone binaries — no Python required**
+            **Desktop — standalone binaries (no Python required)**
 
             | OS | file |
             |----|------|
@@ -231,6 +231,18 @@ jobs:
 
             Unzip and run `./automate/automate serve`. The browser opens to
             `http://127.0.0.1:8765`.
+
+            **Android — native APK**
+
+            Download `autoMate-android.apk` and sideload it (allow install
+            from unknown sources). Works **standalone** in local mode for
+            notes and memory; tap the yellow banner to sync with a hub
+            running on your laptop.
+
+            **iOS — PWA only**
+
+            Open your hub's URL in Safari → Share → **Add to Home Screen**.
+            Apple does not allow non-Store apps; the PWA is the iOS path.
 
             **pip**
 
@@ -249,6 +261,13 @@ jobs:
             **Browser extension** — `autoMate-extension.zip`. Unzip, then
             `chrome://extensions` → Developer mode → Load unpacked → pick the
             folder. The toolbar badge flips to **ON** when paired.
+
+            ---
+
+            See [docs/mobile.md](https://github.com/yuruotong1/autoMate/blob/master/docs/mobile.md)
+            for detailed phone install instructions and
+            [docs/sync.md](https://github.com/yuruotong1/autoMate/blob/master/docs/sync.md)
+            for the local-vs-hub data model.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
