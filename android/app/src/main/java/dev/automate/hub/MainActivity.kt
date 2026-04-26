@@ -16,6 +16,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -65,9 +66,28 @@ class MainActivity : AppCompatActivity() {
             allowContentAccess = true
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             setSupportZoom(false)
+            // v4.5.1: needed so target="_blank" fires onCreateWindow
+            // instead of being silently dropped.
+            javaScriptCanOpenWindowsAutomatically = true
+            setSupportMultipleWindows(true)
         }
-        webView.webViewClient = WebViewClient()
         webView.webChromeClient = object : WebChromeClient() {
+            // v4.5.1: target="_blank" links route through onCreateWindow.
+            // Without this, the link looks like a no-op to the user.
+            override fun onCreateWindow(
+                view: WebView, isDialog: Boolean, isUserGesture: Boolean,
+                resultMsg: android.os.Message,
+            ): Boolean {
+                val href = view.hitTestResult.extra
+                if (!href.isNullOrBlank()) {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(href)))
+                        return false
+                    } catch (_: Throwable) {}
+                }
+                return false
+            }
+
             // v4.5: forward MediaRecorder permission requests to Android.
             // The SPA's record button calls navigator.mediaDevices.getUserMedia
             // which routes through here when the page is loaded from
@@ -175,6 +195,28 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 if (!saved.isNullOrBlank()) injectHub(saved)
+            }
+
+            // v4.5.1: keep external links (Moonshot console, Anthropic
+            // console, GitHub release pages, etc.) out of the WebView.
+            // Default behaviour tried to load them in-place, which most
+            // CSPs reject and ends with a blank or routed-back-home page —
+            // the user reads it as "the button didn't work".
+            override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
+                val target = req.url
+                val scheme = target.scheme ?: return false
+                if (scheme == "http" || scheme == "https" || scheme == "mailto" || scheme == "tel") {
+                    val host = target.host ?: ""
+                    // Stay in-WebView for the user's own hub URL.
+                    if (!saved.isNullOrBlank() && saved.contains(host)) return false
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, target))
+                        return true
+                    } catch (_: Throwable) {
+                        return false
+                    }
+                }
+                return false
             }
         }
         webView.loadUrl("file:///android_asset/index.html")

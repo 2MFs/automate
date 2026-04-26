@@ -475,6 +475,18 @@ document.addEventListener("alpine:init", () => {
     },
 
     openWizard() {
+      // Hard pre-flight: configuring a provider lives on the hub, so
+      // the wizard cannot work in local-only mode. Without this check,
+      // every "Connect and test" click ends in "Failed to fetch" with
+      // no way for the user to know why.
+      if (this.storageMode === "local") {
+        this.settingsOpen = true;
+        alert(
+          "Provider configuration lives on the hub.\n\n" +
+          "Open Settings → paste your hub URL first, then come back to add a model."
+        );
+        return;
+      }
       this.wizardOpen = true;
       this.wizardStep = 1;
       this.wizardChoice = null;
@@ -957,9 +969,31 @@ function urlBase64ToUint8Array(base64) {
 }
 
 async function api(path, method = "GET", body) {
+  // Pre-flight: catch the most common cause of "Failed to fetch" on
+  // mobile — the SPA was loaded from file:///android_asset but the user
+  // never told us where their hub lives. fetch("/api/...") against a
+  // file:// origin throws a TypeError that surfaces as the cryptic
+  // "Failed to fetch". Give a real error instead.
+  const base = hubBase();
+  if (!base && location.protocol === "file:") {
+    throw new Error(
+      "No hub connected yet. Open Settings → paste your hub URL " +
+      "(e.g. http://192.168.1.20:8765) and try again."
+    );
+  }
   const opts = { method, headers: { "Content-Type": "application/json" } };
   if (body !== undefined) opts.body = JSON.stringify(body);
-  const r = await fetch(hubBase() + path, opts);
+  let r;
+  try {
+    r = await fetch(base + path, opts);
+  } catch (e) {
+    // Network/CORS/DNS — fetch's TypeError is useless on its own.
+    throw new Error(
+      `Network error reaching ${base || location.origin}. ` +
+      `Check the hub URL in Settings, that the hub is running, and ` +
+      `(if on phone) that you're on the same WiFi.`
+    );
+  }
   if (!r.ok) {
     let msg = await r.text();
     try { msg = JSON.parse(msg).detail || msg; } catch {}
