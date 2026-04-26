@@ -7,9 +7,12 @@ import time
 import urllib.error
 import urllib.request
 
-from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ... import files as F
 from ...extension_bus import bus
+from ...settings import PATHS
 from ...version import __version__
 from ._deps import state
 
@@ -35,6 +38,36 @@ def status(s=Depends(state)):
         "tools": len(s.registry.all()),
         "extension_connected": bus.connected,
     }
+
+
+# ---------------------------------------------------------------- storage dir
+
+class StorageIn(BaseModel):
+    path: str
+
+
+@router.get("/system/storage")
+def get_storage(s=Depends(state)):
+    """Where new file/video uploads land. Reflects the user's setting
+    (or the default if they haven't picked one yet)."""
+    current = F.storage_dir(s.db)
+    configured = s.db.get_setting(F.STORAGE_DIR_KEY)
+    used = F.total_size(s.db)
+    return {
+        "current": str(current),
+        "default": str(PATHS.files),
+        "is_default": not configured,
+        "used_bytes": used,
+    }
+
+
+@router.put("/system/storage")
+def put_storage(body: StorageIn, s=Depends(state)):
+    try:
+        new_path = F.set_storage_dir(s.db, body.path)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"current": str(new_path), "is_default": False}
 
 
 # ---------------------------------------------------------------- update check

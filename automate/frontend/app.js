@@ -173,6 +173,38 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
+    // ---- v4.5.2: storage location ----
+    storageInfo: null,
+    storageForm: { path: "" },
+    storageBusy: false,
+    storageResult: null,
+
+    async loadStorage() {
+      try {
+        this.storageInfo = await api("/api/system/storage");
+        // Default the input to the current path so the user can edit
+        // it instead of starting from blank.
+        this.storageForm.path = this.storageInfo?.current || "";
+      } catch (e) {
+        // Local-mode (no hub) — silently skip; the section will just
+        // show "..." which is honest.
+      }
+    },
+
+    async saveStorageDir() {
+      this.storageBusy = true;
+      this.storageResult = null;
+      try {
+        const r = await api("/api/system/storage", "PUT", { path: this.storageForm.path });
+        this.storageInfo = { ...this.storageInfo, ...r };
+        this.storageResult = { ok: true, message: "Saved. New uploads will land here." };
+      } catch (e) {
+        this.storageResult = { ok: false, message: e.message };
+      } finally {
+        this.storageBusy = false;
+      }
+    },
+
     // ---- v4.4: update check ----
     updateInfo: null,
     updateBusy: false,
@@ -531,6 +563,7 @@ document.addEventListener("alpine:init", () => {
         this.loadReminders(),
         this.loadBots(),
         this.loadCloudInfo(),
+        this.loadStorage(),
       ]);
       this.checkPushEnabled();
     },

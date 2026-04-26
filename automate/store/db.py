@@ -80,7 +80,11 @@ CREATE TABLE IF NOT EXISTS files_meta (
   size         INTEGER NOT NULL,
   tags         TEXT NOT NULL DEFAULT '',
   description  TEXT NOT NULL DEFAULT '',
-  created_at   REAL NOT NULL
+  created_at   REAL NOT NULL,
+  -- v4.5.2: per-blob storage root so the user can change the file vault
+  -- location without breaking access to previously-uploaded blobs. NULL
+  -- means "use the default PATHS.files" (legacy rows from <=v4.5.1).
+  storage_root TEXT
 );
 CREATE INDEX IF NOT EXISTS files_sha_idx     ON files_meta(sha256);
 CREATE INDEX IF NOT EXISTS files_created_idx ON files_meta(created_at DESC);
@@ -177,8 +181,17 @@ class Database:
         self._conn.execute("PRAGMA journal_mode=WAL;")
         self._conn.execute("PRAGMA foreign_keys=ON;")
         self._conn.executescript(_SCHEMA)
+        self._migrate_v452()
         self._backfill_fts()
         self.vault = vault or Vault(PATHS.secret_key)
+
+    def _migrate_v452(self) -> None:
+        """v4.5.2: add files_meta.storage_root if upgrading from a db that
+        predates the column. CREATE TABLE IF NOT EXISTS won't add a column
+        to an existing table."""
+        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(files_meta)")}
+        if "storage_root" not in cols:
+            self._conn.execute("ALTER TABLE files_meta ADD COLUMN storage_root TEXT")
 
     def _backfill_fts(self) -> None:
         """One-shot: populate the FTS5 mirrors from existing rows on first

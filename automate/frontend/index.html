@@ -307,6 +307,37 @@
           </div>
         </div>
 
+        <!-- v4.5.2: storage location for the file vault -->
+        <div class="pt-4 border-t">
+          <label class="block text-xs font-medium text-zinc-700 mb-1">
+            Storage location
+          </label>
+          <p class="text-[11px] text-zinc-500 mb-2">
+            Where uploaded files, recordings, and videos are stored on the
+            hub machine. Existing files keep working after you change this —
+            only new uploads land in the new directory.
+          </p>
+          <div class="flex gap-2">
+            <input x-model="storageForm.path" :placeholder="storageInfo?.default || '/path/to/files'"
+                   class="flex-1 border rounded-md px-2 py-1.5 text-xs font-mono min-w-0" />
+            <button @click="saveStorageDir()" :disabled="storageBusy"
+                    class="text-xs bg-zinc-900 text-white px-3 py-1.5 rounded-md whitespace-nowrap">
+              <span x-show="!storageBusy">Save</span>
+              <span x-show="storageBusy">…</span>
+            </button>
+          </div>
+          <div class="mt-1 text-[11px] text-zinc-500 flex items-baseline justify-between">
+            <span>
+              Current: <code class="font-mono" x-text="storageInfo?.current || '...'"></code>
+              <span x-show="storageInfo?.is_default" class="text-zinc-400">(default)</span>
+            </span>
+            <span x-show="storageInfo?.used_bytes !== undefined" x-text="fmtBytes(storageInfo?.used_bytes || 0) + ' used'"></span>
+          </div>
+          <p x-show="storageResult" class="mt-1 text-[11px]"
+             :class="storageResult?.ok ? 'text-emerald-600' : 'text-red-600'"
+             x-text="storageResult?.message"></p>
+        </div>
+
         <!-- Check for updates -->
         <div class="pt-4 border-t">
           <label class="block text-xs font-medium text-zinc-700 mb-1">App version</label>

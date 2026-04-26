@@ -19,23 +19,69 @@ from pathlib import Path
 from .settings import PATHS
 from .store import Database
 
+STORAGE_DIR_KEY = "files.storage_dir"
+
+
+def storage_dir(db: Database) -> Path:
+    """Where new uploads land. Reads from the user-configurable
+    ``files.storage_dir`` setting; falls back to ``PATHS.files``.
+
+    The user can change this at runtime via Settings → Storage. Old
+    uploads stay accessible because each row records its own
+    ``storage_root`` — see ``open_blob``.
+    """
+    raw = db.get_setting(STORAGE_DIR_KEY)
+    if raw:
+        try:
+            p = Path(raw).expanduser()
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        except OSError:
+            pass    # configured path is broken — fall back rather than crash uploads
+    PATHS.ensure()
+    return PATHS.files
+
+
+def set_storage_dir(db: Database, path: str) -> Path:
+    """Validate + persist the storage directory. Raises ValueError on a
+    bad path so the API can surface a real error to the SPA."""
+    if not path or not path.strip():
+        raise ValueError("storage path is empty")
+    p = Path(path.strip()).expanduser()
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise ValueError(f"can't create directory: {e}") from e
+    if not p.is_dir():
+        raise ValueError(f"not a directory: {p}")
+    # Probe writability — better to fail now than at upload time.
+    probe = p / ".automate_write_probe"
+    try:
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError as e:
+        raise ValueError(f"directory is not writable: {e}") from e
+    db.set_setting(STORAGE_DIR_KEY, str(p))
+    return p
+
 
 def store_blob(content: bytes, *, filename: str, mime: str | None = None,
                tags: str = "", description: str = "", db: Database) -> dict:
-    PATHS.ensure()
+    root = storage_dir(db)
     sha = hashlib.sha256(content).hexdigest()
-    blob_path = PATHS.files / sha
+    blob_path = root / sha
     if not blob_path.exists():
         blob_path.write_bytes(content)
     fid = uuid.uuid4().hex
     db.execute(
-        "INSERT INTO files_meta (id, sha256, filename, mime, size, tags, description, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO files_meta (id, sha256, filename, mime, size, tags, description, created_at, storage_root) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             fid, sha, filename,
             mime or mimetypes.guess_type(filename)[0] or "application/octet-stream",
             len(content),
             _norm_tags(tags), description, time.time(),
+            str(root),
         ),
     )
     return get_meta(db, fid)  # type: ignore[return-value]
@@ -46,7 +92,14 @@ def get_meta(db: Database, file_id: str) -> dict | None:
 
 
 def open_blob(meta: dict) -> Path:
-    return PATHS.files / meta["sha256"]
+    """Resolve a blob's on-disk path.
+
+    Uses the per-row ``storage_root`` recorded at upload time. Legacy rows
+    (storage_root NULL, written before v4.5.2) fall back to PATHS.files
+    so existing libraries keep working after the upgrade.
+    """
+    root = Path(meta["storage_root"]) if meta.get("storage_root") else PATHS.files
+    return root / meta["sha256"]
 
 
 def list_files(db: Database, *, query: str = "", tag: str = "", limit: int = 200) -> list[dict]:
@@ -96,7 +149,7 @@ def delete_file(db: Database, file_id: str) -> bool:
     leftover = db.fetchone("SELECT 1 FROM files_meta WHERE sha256 = ? LIMIT 1", (meta["sha256"],))
     if not leftover:
         try:
-            (PATHS.files / meta["sha256"]).unlink()
+            open_blob(meta).unlink()
         except FileNotFoundError:
             pass
     return True
