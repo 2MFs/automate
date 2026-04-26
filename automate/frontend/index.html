@@ -28,8 +28,8 @@
 
   <!-- ============ FIRST-RUN WELCOME MODAL ============ -->
   <div x-show="welcomeOpen" x-cloak x-transition.opacity
-       class="fixed inset-0 bg-black/50 grid place-items-center z-30 p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden">
+       class="fixed inset-0 bg-black/50 sm:grid sm:place-items-center z-30 sm:p-4 overflow-y-auto">
+    <div class="bg-white sm:rounded-2xl sm:shadow-2xl sm:max-w-2xl w-full overflow-hidden min-h-screen sm:min-h-0">
       <div class="bg-gradient-to-br from-zinc-900 to-zinc-700 text-white p-8">
         <div class="text-3xl font-bold mb-2">A smart NAS for AI.</div>
         <p class="text-zinc-300 text-sm leading-relaxed mb-3">
@@ -112,12 +112,12 @@
   <!-- ============ SETUP WIZARD (replaces the cold modal) ============ -->
   <div x-show="wizardOpen" x-cloak x-transition.opacity
        class="fixed inset-0 bg-zinc-100 z-30 overflow-y-auto">
-    <div class="max-w-3xl mx-auto p-6 sm:p-12">
-      <div class="flex items-center justify-between mb-6">
-        <button @click="closeWizard()" class="text-sm text-zinc-500 hover:text-zinc-900">← Back</button>
-        <div class="flex gap-2 text-xs">
-          <span class="px-2 py-1 rounded-full" :class="wizardStep === 1 ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-500'">1 · Pick a provider</span>
-          <span class="px-2 py-1 rounded-full" :class="wizardStep === 2 ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-500'">2 · Get a key</span>
+    <div class="max-w-3xl mx-auto p-4 sm:p-12">
+      <div class="flex items-center justify-between mb-6 gap-2">
+        <button @click="closeWizard()" class="text-sm text-zinc-500 hover:text-zinc-900 flex-shrink-0">← Back</button>
+        <div class="flex gap-1 sm:gap-2 text-[10px] sm:text-xs flex-wrap justify-end">
+          <span class="px-2 py-1 rounded-full" :class="wizardStep === 1 ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-500'">1 · Pick</span>
+          <span class="px-2 py-1 rounded-full" :class="wizardStep === 2 ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-500'">2 · Key</span>
           <span class="px-2 py-1 rounded-full" :class="wizardStep === 3 ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-500'">3 · Done</span>
         </div>
       </div>
@@ -245,58 +245,66 @@
 
   <!-- Local-mode banner — visible only when no hub is connected -->
   <div x-show="storageMode === 'local'" x-cloak
-       class="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900 flex items-center justify-between gap-3 flex-wrap">
-    <div>
-      <strong>📱 Local mode</strong> — your notes &amp; memory live only on this device.
-      Tools, files and reminders need a hub on a real computer.
-    </div>
-    <div class="flex gap-2 items-center">
-      <input x-model="hubBaseInput" placeholder="http://laptop-ip:8765"
-             class="border rounded px-2 py-0.5 text-[11px] font-mono w-44" />
-      <button @click="syncWithHub()" :disabled="syncing"
-              class="bg-zinc-900 text-white text-[11px] px-2 py-0.5 rounded">
-        <span x-show="!syncing">Sync &amp; connect</span>
-        <span x-show="syncing">Syncing…</span>
-      </button>
+       class="bg-amber-50 border-b border-amber-200 px-3 sm:px-4 py-2 text-xs text-amber-900">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div class="leading-snug">
+        <strong>📱 Local mode</strong> — notes &amp; memory on this device.
+        <span class="hidden sm:inline">Tools, files and reminders need a hub on a real computer.</span>
+      </div>
+      <div class="flex gap-2 items-center">
+        <input x-model="hubBaseInput" placeholder="http://laptop-ip:8765"
+               class="flex-1 sm:flex-none border rounded px-2 py-1 text-[11px] font-mono sm:w-44 min-w-0" />
+        <button @click="syncWithHub()" :disabled="syncing"
+                class="bg-zinc-900 text-white text-[11px] px-3 py-1 rounded whitespace-nowrap">
+          <span x-show="!syncing">Sync</span>
+          <span x-show="syncing">…</span>
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- Top bar -->
   <header class="border-b bg-white sticky top-0 z-10">
-    <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-7 h-7 rounded-lg bg-zinc-900 text-white grid place-items-center font-bold text-sm">a</div>
-        <div>
-          <div class="font-semibold text-sm">autoMate</div>
-          <div class="text-[11px] text-zinc-500">
-            <span x-text="status?.version ? `v${status.version}` : 'v4.2.0'"></span>
+    <div class="max-w-6xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-8 h-8 rounded-lg bg-zinc-900 text-white grid place-items-center font-bold text-sm flex-shrink-0">a</div>
+        <div class="min-w-0">
+          <div class="font-semibold text-sm truncate" x-text="tabs.find(t => t.id === active)?.label || 'autoMate'"></div>
+          <div class="text-[10px] text-zinc-500 truncate">
+            <span x-text="status?.version ? `v${status.version}` : 'autoMate'"></span>
             <span x-show="storageMode === 'local'" class="text-amber-600 ml-1">· local</span>
             <span x-show="storageMode === 'connected'" class="text-emerald-600 ml-1">· connected</span>
           </div>
         </div>
       </div>
-      <nav class="flex items-center gap-1 text-sm">
+
+      <!-- Desktop tab nav -->
+      <nav class="hidden md:flex items-center gap-1 text-sm">
         <template x-for="t in tabs" :key="t.id">
           <button @click="active = t.id"
                   :class="active === t.id ? 'bg-zinc-900 text-white' : 'hover:bg-zinc-100'"
                   class="px-3 py-1.5 rounded-md transition" x-text="t.label"></button>
         </template>
       </nav>
-      <div class="text-xs text-zinc-500 flex items-center gap-3">
-        <span class="flex items-center gap-1" :title="status?.extension_connected ? 'Browser extension connected' : 'Install the autoMate Bridge extension to drive your real browser'">
+
+      <div class="text-xs text-zinc-500 flex items-center gap-2 sm:gap-3 flex-shrink-0">
+        <span class="flex items-center gap-1" :title="status?.extension_connected ? 'Extension connected' : 'Extension not connected'">
           <span class="w-1.5 h-1.5 rounded-full" :class="status?.extension_connected ? 'bg-emerald-500' : 'bg-zinc-300'"></span>
-          <span class="text-[11px]">extension</span>
+          <span class="hidden sm:inline text-[11px]">ext</span>
         </span>
-        <span x-show="status?.active_provider">
+        <span x-show="status?.active_provider" class="hidden sm:flex items-center gap-1">
           <span class="text-zinc-400">model:</span>
-          <span class="font-medium text-zinc-700" x-text="`${status.active_provider} / ${status.active_model || 'default'}`"></span>
+          <span class="font-medium text-zinc-700 truncate max-w-[10rem]" x-text="`${status.active_provider}`"></span>
         </span>
-        <span x-show="!status?.active_provider" class="text-amber-600">⚠ no model selected</span>
+        <span x-show="!status?.active_provider" class="text-amber-600 text-[11px]">
+          <span class="sm:hidden">⚠</span>
+          <span class="hidden sm:inline">⚠ no model</span>
+        </span>
       </div>
     </div>
   </header>
 
-  <main class="max-w-6xl mx-auto px-6 py-8">
+  <main class="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 pb-24 md:pb-8">
 
     <!-- ============ MODELS ============ -->
     <section x-show="active === 'models'">
@@ -347,8 +355,8 @@
       </div>
 
       <!-- Provider modal — minimal: paste key, click one button. -->
-      <div x-show="editingProvider" x-transition.opacity class="fixed inset-0 bg-black/30 grid place-items-center z-20" @click.self="closeProviderModal()">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6" x-show="editingProvider">
+      <div x-show="editingProvider" x-transition.opacity class="fixed inset-0 bg-black/30 sm:grid sm:place-items-center z-20" @click.self="closeProviderModal()">
+        <div class="bg-white sm:rounded-xl sm:shadow-xl w-full sm:max-w-md p-4 sm:p-6 max-h-[100vh] overflow-y-auto" x-show="editingProvider">
           <div class="flex items-center justify-between mb-1">
             <h2 class="text-lg font-semibold" x-text="editingProvider?.display_name"></h2>
             <button @click="closeProviderModal()" class="text-zinc-400 hover:text-zinc-700">×</button>
@@ -475,8 +483,8 @@
       </template>
 
       <!-- Integration modal — paste once, save, done. OAuth hidden behind Advanced. -->
-      <div x-show="editingIntegration" x-transition.opacity class="fixed inset-0 bg-black/30 grid place-items-center z-20" @click.self="closeIntegrationModal()">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+      <div x-show="editingIntegration" x-transition.opacity class="fixed inset-0 bg-black/30 sm:grid sm:place-items-center z-20" @click.self="closeIntegrationModal()">
+        <div class="bg-white sm:rounded-xl sm:shadow-xl w-full sm:max-w-md p-4 sm:p-6 max-h-[100vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-1">
             <h2 class="text-lg font-semibold" x-text="editingIntegration?.display_name"></h2>
             <button @click="closeIntegrationModal()" class="text-zinc-400 hover:text-zinc-700">×</button>
@@ -555,15 +563,19 @@
 
     <!-- ============ NOTES ============ -->
     <section x-show="active === 'notes'">
-      <div class="mb-5 flex items-end justify-between gap-3">
-        <div>
+      <div class="mb-4 sm:mb-5 flex items-end justify-between gap-3">
+        <div class="hidden md:block">
           <h1 class="text-2xl font-semibold">Notes</h1>
-          <p class="text-sm text-zinc-500 mt-1">Your memory across every AI you use. Markdown bodies, tags, search.</p>
+          <p class="text-sm text-zinc-500 mt-1">Your memory across every AI you use. Markdown, tags, search.</p>
         </div>
-        <button @click="newNote()" class="bg-zinc-900 text-white text-sm px-3 py-1.5 rounded-md">+ New note</button>
+        <button @click="newNote()" class="bg-zinc-900 text-white text-sm px-4 py-2 rounded-md ml-auto">+ New note</button>
       </div>
+      <!-- On mobile: show list when no active note, editor when one selected. -->
+      <button x-show="activeNote" @click="activeNote = null"
+              class="md:hidden text-xs text-zinc-500 mb-2">← Back to list</button>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <aside class="bg-white border rounded-xl p-3 max-h-[70vh] overflow-y-auto">
+        <aside class="bg-white border rounded-xl p-3 max-h-[70vh] overflow-y-auto"
+               :class="{ 'hidden md:block': activeNote }">
           <input x-model="notesQuery" @input.debounce.300ms="loadNotes()"
                  placeholder="Search…" class="w-full border rounded-md px-2 py-1.5 text-sm mb-2" />
           <div x-show="!notes.length" class="text-xs text-zinc-400 py-8 text-center">
@@ -582,7 +594,8 @@
             </button>
           </template>
         </aside>
-        <main class="md:col-span-2 bg-white border rounded-xl p-4">
+        <main class="md:col-span-2 bg-white border rounded-xl p-4"
+              :class="{ 'hidden md:block': !activeNote }">
           <div x-show="!activeNote" class="text-center text-zinc-400 text-sm py-16">
             Pick a note on the left, or click <strong>+ New note</strong>.
           </div>
@@ -1142,6 +1155,43 @@
     </section>
 
   </main>
+
+  <!-- Mobile bottom nav (hidden on md+ where the top tabs do the job) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-white border-t flex items-stretch text-[11px]"
+       style="padding-bottom: env(safe-area-inset-bottom)">
+    <template x-for="t in mobileTabs" :key="t.id">
+      <button @click="active = t.id"
+              class="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition"
+              :class="active === t.id ? 'text-zinc-900' : 'text-zinc-400'">
+        <span class="text-lg leading-none" x-text="t.icon"></span>
+        <span class="text-[10px]" x-text="t.label"></span>
+      </button>
+    </template>
+    <!-- 'More' opens a sheet with the secondary tabs -->
+    <button @click="moreOpen = !moreOpen"
+            class="flex-1 flex flex-col items-center justify-center gap-0.5 py-2"
+            :class="moreOpen || moreTabs.find(t => t.id === active) ? 'text-zinc-900' : 'text-zinc-400'">
+      <span class="text-lg leading-none">⋯</span>
+      <span class="text-[10px]">More</span>
+    </button>
+  </nav>
+
+  <!-- Mobile 'More' sheet -->
+  <div x-show="moreOpen" x-cloak x-transition.opacity
+       class="md:hidden fixed inset-0 bg-black/40 z-30" @click.self="moreOpen = false">
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl p-4 pb-8"
+         style="padding-bottom: calc(2rem + env(safe-area-inset-bottom))">
+      <div class="w-10 h-1 bg-zinc-200 rounded-full mx-auto mb-4"></div>
+      <template x-for="t in moreTabs" :key="t.id">
+        <button @click="active = t.id; moreOpen = false"
+                class="w-full text-left px-3 py-3 rounded-lg flex items-center gap-3 hover:bg-zinc-50"
+                :class="active === t.id ? 'bg-zinc-100' : ''">
+          <span class="text-xl" x-text="t.icon"></span>
+          <span class="text-sm font-medium" x-text="t.label"></span>
+        </button>
+      </template>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

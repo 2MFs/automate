@@ -9,6 +9,19 @@ document.addEventListener("alpine:init", () => {
       { id: "models",       label: "Models" },
       { id: "help",         label: "Help" },
     ],
+    // Mobile gets a 4-icon bottom bar plus a "More" sheet for the rest.
+    mobileTabs: [
+      { id: "notes",     label: "Notes",     icon: "📒" },
+      { id: "reminders", label: "Reminders", icon: "⏰" },
+      { id: "files",     label: "Files",     icon: "📁" },
+      { id: "connect",   label: "Connect",   icon: "🔌" },
+    ],
+    moreTabs: [
+      { id: "integrations", label: "Tools",  icon: "🧰" },
+      { id: "models",       label: "Models", icon: "🧠" },
+      { id: "help",         label: "Help",   icon: "?" },
+    ],
+    moreOpen: false,
     active: "notes",
     region: "",
     status: null,
