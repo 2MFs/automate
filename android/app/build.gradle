@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'dev.automate.hub'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "dev.automate.hub"
+        minSdk 24                  // Android 7.0+
+        targetSdk 34
+        versionCode 1
+        versionName "4.1.1"
+    }
+
+    buildTypes {
+        release {
+            // We sign with the debug keystore so users can sideload from the
+            // GitHub release without us having to ship a private signing key.
+            // For Play Store distribution, plug in a real release keystore.
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+
+    // Bundle the autoMate SPA inside the APK so the app works offline and
+    // does not depend on GitHub Pages or any external host.
+    sourceSets {
+        main.assets.srcDirs += ['../../automate/frontend']
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'com.google.android.material:material:1.12.0'
+}

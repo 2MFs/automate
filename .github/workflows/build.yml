@@ -170,55 +170,39 @@ jobs:
         uses: actions/deploy-pages@v4
 
   android:
-    # Best-effort APK that wraps the GitHub Pages PWA. The TWA opens the
-    # hosted UI; the user then sets their hub URL in-app (Help → Connect
-    # this UI to a different hub).
-    name: Build Android APK (TWA)
-    needs: [resolve, pages]
+    # Builds a self-contained Android APK (Kotlin + WebView + bundled SPA).
+    # No Pages dependency, no public manifest needed — the SPA is in the
+    # APK's assets and the user types their hub URL on first launch.
+    # Signed with the debug keystore so users can sideload from the release.
+    name: Build Android APK
+    needs: resolve
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
       - uses: actions/setup-java@v4
         with: { distribution: "temurin", java-version: "17" }
-      - name: Install Bubblewrap
-        run: npm install --global @bubblewrap/cli@latest
-      - name: Wait briefly for Pages to propagate
-        run: sleep 30
-      - name: Init + build TWA
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Stamp versionName from tag
+        working-directory: android
         run: |
-          mkdir twa && cd twa
-          MANIFEST_URL="https://${{ github.repository_owner }}.github.io/autoMate/manifest.webmanifest"
-          # Bubblewrap can read manifest from URL; --skipPwaValidation lets
-          # it proceed even if assetlinks isn't yet configured.
-          npx -y @bubblewrap/cli init \
-            --manifest "$MANIFEST_URL" \
-            --directory . \
-            --skipPwaValidation || exit 0
-          # Sign with auto-generated keystore; non-interactive password.
-          export PWA_KEY_PASSWORD=automatehub
-          export PWA_KEYSTORE_PASSWORD=automatehub
-          npx -y @bubblewrap/cli build --skipPwaValidation || exit 0
-          ls -la
-      - name: Locate APK
-        id: locate
+          v="${{ needs.resolve.outputs.tag }}"
+          v="${v#v}"
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$v\"/" app/build.gradle
+          grep versionName app/build.gradle
+      - name: Build debug APK
+        working-directory: android
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Rename for release
+        working-directory: android
         run: |
-          apk=$(find twa -name '*-release-signed.apk' -o -name '*.apk' | head -1)
-          if [ -n "$apk" ]; then
-            cp "$apk" autoMate-android.apk
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            ls -lh autoMate-android.apk
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-            echo "(no APK produced — will not block release)"
-          fi
+          cp app/build/outputs/apk/debug/app-debug.apk autoMate-android.apk
+          ls -lh autoMate-android.apk
       - uses: actions/upload-artifact@v4
-        if: steps.locate.outputs.found == 'true'
         with:
           name: autoMate-android
-          path: autoMate-android.apk
+          path: android/autoMate-android.apk
 
   wheel:
     name: Build wheel + sdist
