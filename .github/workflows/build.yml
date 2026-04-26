@@ -187,10 +187,10 @@ jobs:
 
   release:
     name: Publish Release
-    # Hard deps: only the things that should always succeed. Pages and
-    # android are best-effort — the release publishes whatever subset of
-    # artifacts exists.
-    needs: [resolve, build, extension, wheel]
+    # Wait for android too so the APK lands in the release. Android is
+    # continue-on-error, so if it crashes the release still proceeds —
+    # the `if:` only requires resolve + build to succeed.
+    needs: [resolve, build, extension, wheel, android]
     if: always() && needs.resolve.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     permissions:
