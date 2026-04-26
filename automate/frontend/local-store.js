@@ -1,26 +1,27 @@
 // Local IndexedDB store — used when no hub URL is configured.
 //
 // autoMate's "smart NAS for AI" model: each device has its own data, sync
-// is opt-in. This module gives the SPA a working notes/memory store even
-// when the user has no hub running on their laptop yet. Files and reminders
-// stay hub-only for now (binary blobs are heavy in IndexedDB; reminders
-// need a scheduler the phone OS won't let us run reliably).
+// is opt-in. This module gives the SPA a working notes/memory/files store
+// even when the user has no hub running on their laptop yet.
+//
+// v4.5.4: files now live here too. Most phones can comfortably hold a few
+// hundred MB of attachments in IndexedDB. Bigger libraries should connect
+// a hub.
 
 const DB_NAME = "automate-local";
-const DB_VERSION = 1;
-const STORES = ["notes", "memory"];
+const DB_VERSION = 2;
+const STORES = ["notes", "memory", "files_meta", "files_blob"];
 
 function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      for (const name of STORES) {
-        if (!db.objectStoreNames.contains(name)) {
-          const keyPath = name === "memory" ? "key" : "id";
-          db.createObjectStore(name, { keyPath });
-        }
-      }
+      // notes / memory existed in v1; files_meta / files_blob are v2.
+      if (!db.objectStoreNames.contains("notes"))      db.createObjectStore("notes",      { keyPath: "id" });
+      if (!db.objectStoreNames.contains("memory"))     db.createObjectStore("memory",     { keyPath: "key" });
+      if (!db.objectStoreNames.contains("files_meta")) db.createObjectStore("files_meta", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("files_blob")) db.createObjectStore("files_blob", { keyPath: "id" });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -136,6 +137,69 @@ const localStore = {
     const existing = await asPromise(tx(this._db, "memory").get(key));
     if (!existing) return false;
     await asPromise(tx(this._db, "memory", "readwrite").delete(key));
+    return true;
+  },
+
+  // ---- files (v4.5.4) ----
+
+  async createFile(file, { tags = "", description = "" } = {}) {
+    await this.init();
+    const id = uuid();
+    const buf = await file.arrayBuffer();
+    const meta = {
+      id,
+      filename: file.name || "upload",
+      mime: file.type || "application/octet-stream",
+      size: buf.byteLength,
+      tags: this._normTags(tags),
+      description,
+      created_at: Date.now() / 1000,
+      // We keep blobs by the same id; sha256 is unused locally (the hub
+      // dedupes via content hash, but the cost of computing SHA-256 on a
+      // 100 MB video in JS is high enough that we skip it).
+      sha256: "",
+      storage_root: "indexeddb",
+    };
+    await asPromise(tx(this._db, "files_meta", "readwrite").put(meta));
+    await asPromise(tx(this._db, "files_blob", "readwrite").put({ id, blob: new Blob([buf], { type: meta.mime }) }));
+    return meta;
+  },
+
+  async getFileMeta(id) {
+    await this.init();
+    return asPromise(tx(this._db, "files_meta").get(id));
+  },
+
+  async getFileBlob(id) {
+    await this.init();
+    const row = await asPromise(tx(this._db, "files_blob").get(id));
+    return row?.blob || null;
+  },
+
+  async listFiles({ query = "", tag = "", limit = 200 } = {}) {
+    await this.init();
+    const all = await asPromise(tx(this._db, "files_meta").getAll());
+    const q = query.toLowerCase();
+    let f = all;
+    if (q) f = f.filter(m => (m.filename || "").toLowerCase().includes(q) ||
+                              (m.description || "").toLowerCase().includes(q));
+    if (tag) f = f.filter(m => (`,${m.tags || ""},`).includes(`,${tag.trim()},`));
+    f.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    return f.slice(0, limit);
+  },
+
+  async filesUsage() {
+    await this.init();
+    const all = await asPromise(tx(this._db, "files_meta").getAll());
+    return { count: all.length, total_bytes: all.reduce((s, m) => s + (m.size || 0), 0) };
+  },
+
+  async deleteFile(id) {
+    await this.init();
+    const existing = await asPromise(tx(this._db, "files_meta").get(id));
+    if (!existing) return false;
+    await asPromise(tx(this._db, "files_meta", "readwrite").delete(id));
+    await asPromise(tx(this._db, "files_blob", "readwrite").delete(id));
     return true;
   },
 

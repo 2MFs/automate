@@ -557,11 +557,16 @@
         </div>
       </div>
 
-      <!-- Mode hint — small and contextual, no scary banner -->
-      <div x-show="storageMode === 'local'" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
-        <strong>Local-only.</strong> Notes &amp; memory live on this device. Files,
-        reminders and tools work once you connect to a hub.
-        <button @click="settingsOpen = true" class="underline ml-1">Connect hub →</button>
+      <!-- v4.5.4: honest split — what works without a hub vs what
+           genuinely needs one. No more vague "limited features". -->
+      <div x-show="storageMode === 'local'" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 leading-relaxed">
+        <strong>This device only.</strong> Notes, files, memory, and update
+        checks all work locally — no hub needed.
+        <br><br>
+        For <em>AI chat, automation tools, integrations, and bots</em>, run a
+        copy of autoMate on a computer/server (the &ldquo;hub&rdquo;) and paste
+        its URL in Settings.
+        <button @click="openSettingsToHub()" class="underline ml-1">Connect a hub →</button>
       </div>
 
     </section>
@@ -882,27 +887,22 @@
 
     <!-- ============ FILES ============ -->
     <section x-show="active === 'files'">
-      <div x-show="storageMode === 'local'" class="bg-white border rounded-xl p-12 text-center">
-        <div class="text-3xl mb-2">📁</div>
-        <h2 class="font-semibold mb-1">Files need a hub</h2>
-        <p class="text-sm text-zinc-500 max-w-md mx-auto mb-4">
-          The file vault stores big binaries (videos, audio, datasets) that
-          would crush a phone's local storage. Spin up a hub on a real
-          computer and sync this device to it.
-        </p>
-        <button @click="active='help'" class="text-xs underline">How do I do that?</button>
-      </div>
-      <div x-show="storageMode === 'connected'" class="mb-5 flex items-end justify-between gap-3">
+      <div class="mb-5 flex items-end justify-between gap-3">
         <div>
           <h1 class="text-2xl font-semibold">Files</h1>
           <p class="text-sm text-zinc-500 mt-1">
-            Your file vault. Stored locally,
+            <span x-show="storageMode === 'local'">Stored on this device (IndexedDB).</span>
+            <span x-show="storageMode === 'connected'">Stored on the hub.</span>
             <span x-text="fmtBytes(filesUsage.total_bytes)"></span> in
-            <span x-text="filesUsage.count"></span> files. Any AI can fetch a file's bytes via <code>files.read</code>.
+            <span x-text="filesUsage.count"></span> files.
+            <span x-show="storageMode === 'connected'">Any AI can fetch a file's bytes via <code>files.read</code>.</span>
+            <span x-show="storageMode === 'local'" class="text-amber-600">
+              Big libraries? Connect a hub for unlimited storage.
+            </span>
           </p>
         </div>
         <div class="flex gap-2">
-          <button @click="toggleRecording()"
+          <button x-show="storageMode === 'connected'" @click="toggleRecording()"
                   :class="recording ? 'bg-red-600 text-white animate-pulse' : 'bg-white border'"
                   class="text-sm px-3 py-1.5 rounded-md">
             <span x-show="!recording">🎙 Record</span>
@@ -951,7 +951,10 @@
             <div class="text-xs text-zinc-500" x-text="f.mime + ' · ' + fmtBytes(f.size)"></div>
             <div class="text-[10px] text-zinc-400 mt-1 truncate" x-show="f.tags" x-text="f.tags"></div>
             <div class="flex gap-2 mt-auto pt-2 border-t">
-              <a :href="fileDownloadUrl(f)" target="_blank" class="text-xs border rounded-md px-2 py-1 hover:bg-zinc-50">Download</a>
+              <a x-show="storageMode === 'connected'" :href="fileDownloadUrl(f)" target="_blank"
+                 class="text-xs border rounded-md px-2 py-1 hover:bg-zinc-50">Download</a>
+              <button x-show="storageMode === 'local'" @click="downloadLocalFile(f)"
+                      class="text-xs border rounded-md px-2 py-1 hover:bg-zinc-50">Download</button>
               <button @click="deleteFile(f.id)" class="text-xs text-red-600 hover:bg-red-50 rounded-md px-2 py-1 ml-auto">Delete</button>
             </div>
           </div>

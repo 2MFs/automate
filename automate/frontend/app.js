@@ -274,8 +274,15 @@ document.addEventListener("alpine:init", () => {
     },
 
     async checkForUpdates() {
+      // v4.5.4: this is a pure information lookup against GitHub. There
+      // is no reason to require a hub for it. Try the SPA-direct path
+      // first; only fall back to the hub if the user has explicitly
+      // configured a private mirror that needs server-side rewriting.
       this.updateBusy = true;
       try {
+        const direct = await this._checkUpdatesDirect();
+        if (direct) { this.updateInfo = direct; return; }
+        // No direct path possible (mirror not http) — try the hub.
         const params = new URLSearchParams({ force: "true" });
         if (this.updateMirror) params.set("mirror", this.updateMirror);
         this.updateInfo = await api(`/api/system/update_check?${params}`);
@@ -284,6 +291,52 @@ document.addEventListener("alpine:init", () => {
       } finally {
         this.updateBusy = false;
       }
+    },
+
+    async _checkUpdatesDirect() {
+      const repo = "yuruotong1/autoMate";
+      const url = `https://api.github.com/repos/${repo}/releases/latest`;
+      try {
+        const r = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+        if (!r.ok) return null;
+        const payload = await r.json();
+        const latest = (payload.tag_name || "").replace(/^v/, "");
+        const current = this.status?.version || (window.AUTOMATE_VERSION || "");
+        const downloads = {};
+        for (const a of (payload.assets || [])) {
+          const name = a.name || "";
+          let url = a.browser_download_url || "";
+          if (this.updateMirror && url.startsWith("https://github.com/")) {
+            const host = this.updateMirror.replace(/\/$/, "");
+            url = (host.startsWith("http") ? host : `https://${host}`) + "/" + url;
+          }
+          if (name.endsWith(".apk")) downloads.android = url;
+          else if (name.endsWith("windows-x64.zip")) downloads.windows = url;
+          else if (name.endsWith("macos-arm64.zip") || name.endsWith("darwin-arm64.zip")) downloads.macos = url;
+          else if (name.endsWith("linux-x64.tar.gz")) downloads.linux = url;
+          else if (name.endsWith(".whl")) downloads.wheel = url;
+        }
+        return {
+          current, latest, newer: this._isNewer(latest, current),
+          release_notes_url: payload.html_url || "",
+          release_notes_body: (payload.body || "").slice(0, 4000),
+          download_urls: downloads,
+          source: this.updateMirror ? "mirror" : "github",
+        };
+      } catch (e) {
+        // CORS or offline — caller falls back to hub.
+        return null;
+      }
+    },
+
+    _isNewer(latest, current) {
+      const parts = (s) => s.split(/[.\-]/).map(p => parseInt(p, 10)).filter(n => !isNaN(n));
+      const a = parts(latest), b = parts(current);
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if ((a[i] || 0) > (b[i] || 0)) return true;
+        if ((a[i] || 0) < (b[i] || 0)) return false;
+      }
+      return false;
     },
 
     downloadApk() {
@@ -718,20 +771,31 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    // ---- v5: files ----
+    // ---- files (local IndexedDB or hub) ----
     async loadFiles() {
-      this.files = await api("/api/files");
-      this.filesUsage = await api("/api/files/usage");
+      if (this.storageMode === "local") {
+        this.files = await window.localStore.listFiles({});
+        this.filesUsage = await window.localStore.filesUsage();
+      } else {
+        this.files = await api("/api/files");
+        this.filesUsage = await api("/api/files/usage");
+      }
     },
     async uploadFiles(ev) {
       const fileList = Array.from(ev.target.files || []);
       if (!fileList.length) return;
       this.fileUploading = true;
       try {
-        for (const f of fileList) {
-          const fd = new FormData();
-          fd.append("file", f);
-          await fetch(hubBase() + "/api/files", { method: "POST", body: fd });
+        if (this.storageMode === "local") {
+          for (const f of fileList) {
+            await window.localStore.createFile(f);
+          }
+        } else {
+          for (const f of fileList) {
+            const fd = new FormData();
+            fd.append("file", f);
+            await fetch(hubBase() + "/api/files", { method: "POST", body: fd });
+          }
         }
         await this.loadFiles();
       } finally {
@@ -741,10 +805,27 @@ document.addEventListener("alpine:init", () => {
     },
     async deleteFile(id) {
       if (!confirm("Delete this file?")) return;
-      await api(`/api/files/${id}`, "DELETE");
+      if (this.storageMode === "local") {
+        await window.localStore.deleteFile(id);
+      } else {
+        await api(`/api/files/${id}`, "DELETE");
+      }
       await this.loadFiles();
     },
+    async downloadLocalFile(f) {
+      // For local files we don't have a stable URL — open the blob via
+      // a one-shot object URL.
+      const blob = await window.localStore.getFileBlob(f.id);
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = f.filename || "download";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
     fileDownloadUrl(f) {
+      // Hub-mode raw URL. Local-mode files don't have one — the UI uses
+      // downloadLocalFile() instead.
       return `${hubBase()}/api/files/${f.id}/raw`;
     },
     fmtBytes(n) {
