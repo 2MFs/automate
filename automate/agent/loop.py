@@ -116,6 +116,16 @@ class AgentLoop:
         tool = self.registry.get(tc.name)
         if not tool:
             result_text = json.dumps({"error": f"unknown tool: {tc.name}"})
+        elif tool.tier == "pro" and not self._has_pro_session():
+            # Paid-tier tool, user not signed in. Return a clean message
+            # the LLM can relay instead of executing the call.
+            result_text = json.dumps({
+                "error": "needs_pro_subscription",
+                "message": (
+                    f"The tool '{tool.name}' requires a Pro subscription. "
+                    "Tell the user they can sign in via Settings → autoMate Cloud."
+                ),
+            })
         else:
             try:
                 result = tool.call(tc.arguments)
@@ -124,3 +134,13 @@ class AgentLoop:
                 result_text = json.dumps({"error": f"{type(e).__name__}: {e}"})
         emit(RunEvent("tool_result", {"id": tc.id, "name": tc.name, "result": result_text}))
         messages.append(ChatMessage(role="tool", tool_call_id=tc.id, name=tc.name, content=result_text))
+
+    def _has_pro_session(self) -> bool:
+        """Check whether a Pro session exists. Falls open (no session) if
+        the auth module isn't wired — keeps free tools working in early
+        installs that don't have AUTOMATE_CLOUD_URL set."""
+        try:
+            from .. import auth
+            return auth.get_session(self.db) is not None
+        except Exception:  # noqa: BLE001
+            return False

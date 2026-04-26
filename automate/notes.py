@@ -52,17 +52,49 @@ def get_note(db: Database, note_id: str) -> dict | None:
 
 def list_notes(db: Database, *, query: str = "", tag: str = "",
                limit: int = 200) -> list[dict]:
+    """List notes, optionally filtered by query / tag.
+
+    When ``query`` is given, we use SQLite FTS5 (BM25) for ranking — this
+    is the Coze-style retrieval path. Each whitespace-separated word
+    becomes a prefix match, so 'tokyo' finds 'Tokyo Trip 2024'. If FTS5
+    isn't compiled into the host's SQLite (rare on modern systems), we
+    fall back to LIKE so the UI still works.
+    """
     where, params = ["1=1"], []
     if query:
-        where.append("(title LIKE ? OR body LIKE ?)")
-        like = f"%{query}%"
-        params += [like, like]
+        fts = _fts_query(query)
+        if fts:
+            try:
+                # Probe FTS5 with a cheap query. If it works, route through it.
+                db.fetchone("SELECT 1 FROM notes_fts LIMIT 1")
+                where.append(
+                    "rowid IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)"
+                )
+                params.append(fts)
+            except Exception:  # noqa: BLE001
+                where.append("(title LIKE ? OR body LIKE ?)")
+                like = f"%{query}%"
+                params += [like, like]
+        else:
+            where.append("(title LIKE ? OR body LIKE ?)")
+            like = f"%{query}%"
+            params += [like, like]
     if tag:
         where.append("(',' || tags || ',') LIKE ?")
         params.append(f"%,{tag.strip()},%")
-    sql = f"SELECT * FROM notes WHERE {' AND '.join(where)} ORDER BY pinned DESC, updated_at DESC LIMIT ?"
+    sql = (
+        f"SELECT * FROM notes WHERE {' AND '.join(where)} "
+        f"ORDER BY pinned DESC, updated_at DESC LIMIT ?"
+    )
     params.append(limit)
     return db.fetchall(sql, tuple(params))
+
+
+def _fts_query(raw: str) -> str:
+    """Sanitise user input for FTS5 (strip operators, prefix-match each word)."""
+    safe = "".join(c if c.isalnum() or c.isspace() else " " for c in raw)
+    parts = [p + "*" for p in safe.split() if len(p) >= 2]
+    return " ".join(parts)
 
 
 def delete_note(db: Database, note_id: str) -> bool:

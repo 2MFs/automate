@@ -27,6 +27,7 @@ class Tool:
     category: str = "general"          # 'system' | 'browser' | 'desktop' | 'integration' | ...
     requires: list[str] = field(default_factory=list)  # connection ids needed
     danger: str = "low"                # 'low' | 'medium' | 'high' (UI hint)
+    tier: str = "free"                 # 'free' | 'pro' — pro tools require a logged-in cloud session
 
     def call(self, args: dict[str, Any]) -> Any:
         sig = inspect.signature(self.handler)
@@ -84,10 +85,12 @@ def build_default_registry() -> ToolRegistry:
     from . import files as _files
     from . import reminders as _reminders
     from . import memory as _memory
+    from . import search as _search
     from . import integrations_adapter as _ia
 
     reg = ToolRegistry()
-    # Personal-infra tools first — these are autoMate's identity in v5.
+    # Personal-infra tools first — these are autoMate's identity.
+    _search.register(reg)            # search.find — preferred entry for "find me X"
     _notes.register(reg)
     _files.register(reg)
     _reminders.register(reg)

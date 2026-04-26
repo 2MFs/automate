@@ -1,7 +1,14 @@
 package dev.automate.hub
 
 import android.annotation.SuppressLint
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.text.InputType
 import android.view.Menu
 import android.view.MenuItem
@@ -11,9 +18,12 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.preference.PreferenceManager
+import java.io.File
 
 /**
  * Minimal WebView wrapper around the bundled autoMate SPA.
@@ -54,7 +64,70 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = WebChromeClient()
 
+        // v4.4: when the SPA navigates to an .apk URL (the auto-update
+        // path), download it and pop the system installer.
+        webView.setDownloadListener { url, _, _, mimeType, _ ->
+            if (url.endsWith(".apk", ignoreCase = true) ||
+                mimeType == "application/vnd.android.package-archive") {
+                downloadAndInstall(url)
+            } else {
+                // Fall back to opening the URL externally so we don't
+                // accidentally swallow other downloads.
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            }
+        }
+
         loadShell()
+    }
+
+    // ---- v4.4: in-app APK update ----
+
+    private var downloadId: Long = -1L
+
+    private fun downloadAndInstall(url: String) {
+        Toast.makeText(this, "Downloading update…", Toast.LENGTH_SHORT).show()
+        val updatesDir = File(cacheDir, "updates").apply { mkdirs() }
+        val target = File(updatesDir, "update-${System.currentTimeMillis()}.apk")
+        val mgr = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+        val request = DownloadManager.Request(Uri.parse(url))
+            .setTitle("autoMate update")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationUri(Uri.fromFile(target))
+            .setMimeType("application/vnd.android.package-archive")
+        downloadId = mgr.enqueue(request)
+        registerReceiver(
+            installOnComplete(target),
+            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+            Context.RECEIVER_EXPORTED,
+        )
+    }
+
+    private fun installOnComplete(target: File) = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context, intent: Intent) {
+            val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+            if (id != downloadId) return
+            try {
+                ctx.unregisterReceiver(this)
+            } catch (_: Throwable) {}
+            launchInstaller(target)
+        }
+    }
+
+    private fun launchInstaller(apk: File) {
+        if (!apk.exists()) {
+            Toast.makeText(this, "Download failed.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)
+        val install = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(install)
+        } catch (e: Throwable) {
+            Toast.makeText(this, "Cannot launch installer: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun loadShell() {

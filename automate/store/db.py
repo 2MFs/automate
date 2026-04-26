@@ -127,6 +127,44 @@ CREATE TABLE IF NOT EXISTS bots (
   last_error      TEXT,
   updated_at      REAL NOT NULL
 );
+
+-- v4.4: hybrid retrieval — SQLite FTS5 mirrors of notes + files_meta.
+-- Triggers below keep them in sync. The agent's `search.find` tool runs
+-- BM25 ranking over these (Coze-style: keyword + structure beats pure
+-- vector for proper-noun / id queries).
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+  title, body, tags,
+  content='notes', content_rowid='rowid',
+  tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
+  INSERT INTO notes_fts(rowid, title, body, tags) VALUES (new.rowid, new.title, new.body, new.tags);
+END;
+CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN
+  INSERT INTO notes_fts(notes_fts, rowid, title, body, tags) VALUES ('delete', old.rowid, old.title, old.body, old.tags);
+END;
+CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
+  INSERT INTO notes_fts(notes_fts, rowid, title, body, tags) VALUES ('delete', old.rowid, old.title, old.body, old.tags);
+  INSERT INTO notes_fts(rowid, title, body, tags) VALUES (new.rowid, new.title, new.body, new.tags);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
+  filename, description, tags,
+  content='files_meta', content_rowid='rowid',
+  tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TRIGGER IF NOT EXISTS files_ai AFTER INSERT ON files_meta BEGIN
+  INSERT INTO files_fts(rowid, filename, description, tags) VALUES (new.rowid, new.filename, new.description, new.tags);
+END;
+CREATE TRIGGER IF NOT EXISTS files_ad AFTER DELETE ON files_meta BEGIN
+  INSERT INTO files_fts(files_fts, rowid, filename, description, tags) VALUES ('delete', old.rowid, old.filename, old.description, old.tags);
+END;
+CREATE TRIGGER IF NOT EXISTS files_au AFTER UPDATE ON files_meta BEGIN
+  INSERT INTO files_fts(files_fts, rowid, filename, description, tags) VALUES ('delete', old.rowid, old.filename, old.description, old.tags);
+  INSERT INTO files_fts(rowid, filename, description, tags) VALUES (new.rowid, new.filename, new.description, new.tags);
+END;
 """
 
 
@@ -139,7 +177,26 @@ class Database:
         self._conn.execute("PRAGMA journal_mode=WAL;")
         self._conn.execute("PRAGMA foreign_keys=ON;")
         self._conn.executescript(_SCHEMA)
+        self._backfill_fts()
         self.vault = vault or Vault(PATHS.secret_key)
+
+    def _backfill_fts(self) -> None:
+        """One-shot: populate the FTS5 mirrors from existing rows on first
+        upgrade. Triggers cover everything inserted *after* this point;
+        rows that predate the v4.4 schema bump need a manual rebuild."""
+        try:
+            for table, fts in (("notes", "notes_fts"), ("files_meta", "files_fts")):
+                row = self._conn.execute(f"SELECT count(*) FROM {fts}").fetchone()
+                if row[0] > 0:
+                    continue
+                cols = "title, body, tags" if table == "notes" else "filename, description, tags"
+                self._conn.execute(
+                    f"INSERT INTO {fts}(rowid, {cols}) SELECT rowid, {cols} FROM {table}"
+                )
+        except sqlite3.OperationalError:
+            # FTS5 not available in this SQLite build (very rare on
+            # modern systems). Search just falls back to LIKE.
+            pass
 
     # ---------- generic helpers ----------
 

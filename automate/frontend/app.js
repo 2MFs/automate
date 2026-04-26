@@ -86,6 +86,80 @@ document.addEventListener("alpine:init", () => {
     integrationFilter: "",
     botForm: {},
 
+    // ---- v4.4: update check ----
+    updateInfo: null,
+    updateBusy: false,
+    updateMirror: localStorage.getItem("automate-update-mirror") || "",
+
+    // ---- v4.4: cloud auth ----
+    cloudInfo: null,
+    cloudLoginForm: { email: "", password: "" },
+    cloudBusy: false,
+    cloudResult: null,
+
+    get isAndroid() {
+      // Detect Android (real APK or Chrome on Android). The TWA APK can
+      // download files via WebView's DownloadListener (wired in
+      // MainActivity.kt) which lets us trigger the system installer.
+      return /Android/i.test(navigator.userAgent);
+    },
+
+    saveUpdateMirror() {
+      const v = (this.updateMirror || "").trim().replace(/\/$/, "");
+      if (v) localStorage.setItem("automate-update-mirror", v);
+      else localStorage.removeItem("automate-update-mirror");
+    },
+
+    async checkForUpdates() {
+      this.updateBusy = true;
+      try {
+        const params = new URLSearchParams({ force: "true" });
+        if (this.updateMirror) params.set("mirror", this.updateMirror);
+        this.updateInfo = await api(`/api/system/update_check?${params}`);
+      } catch (e) {
+        this.updateInfo = { error: e.message };
+      } finally {
+        this.updateBusy = false;
+      }
+    },
+
+    downloadApk() {
+      const url = this.updateInfo?.download_urls?.android;
+      if (!url) return;
+      // On Android, the APK navigation triggers the WebView's
+      // DownloadListener (see MainActivity.kt), which downloads the
+      // file and launches the system installer. On other platforms we
+      // would never reach this branch (the button is gated by isAndroid).
+      window.location.href = url;
+    },
+
+    async loadCloudInfo() {
+      try { this.cloudInfo = await api("/api/auth/me"); }
+      catch (e) { this.cloudInfo = { logged_in: false, cloud_configured: false }; }
+    },
+
+    async cloudLogin() {
+      this.cloudBusy = true;
+      this.cloudResult = null;
+      try {
+        await api("/api/auth/login", "POST", this.cloudLoginForm);
+        this.cloudResult = { ok: true, message: "Signed in." };
+        this.cloudLoginForm = { email: "", password: "" };
+        await this.loadCloudInfo();
+      } catch (e) {
+        this.cloudResult = { ok: false, message: e.message };
+      } finally {
+        this.cloudBusy = false;
+      }
+    },
+
+    async cloudLogout() {
+      try {
+        await api("/api/auth/logout", "POST");
+      } catch (e) { /* best effort */ }
+      await this.loadCloudInfo();
+    },
+
     messages: [],
     liveEvents: [],
     input: "",
@@ -357,6 +431,7 @@ document.addEventListener("alpine:init", () => {
         this.loadFiles(),
         this.loadReminders(),
         this.loadBots(),
+        this.loadCloudInfo(),
       ]);
       this.checkPushEnabled();
     },

@@ -50,17 +50,41 @@ def open_blob(meta: dict) -> Path:
 
 
 def list_files(db: Database, *, query: str = "", tag: str = "", limit: int = 200) -> list[dict]:
+    """List files, optionally FTS5-ranked by ``query``.
+
+    Mirrors the notes path — same prefix-match strategy, same fallback
+    to LIKE if FTS5 isn't available.
+    """
     where, params = ["1=1"], []
     if query:
-        where.append("(filename LIKE ? OR description LIKE ?)")
-        like = f"%{query}%"
-        params += [like, like]
+        fts = _fts_query(query)
+        if fts:
+            try:
+                db.fetchone("SELECT 1 FROM files_fts LIMIT 1")
+                where.append(
+                    "rowid IN (SELECT rowid FROM files_fts WHERE files_fts MATCH ?)"
+                )
+                params.append(fts)
+            except Exception:  # noqa: BLE001
+                where.append("(filename LIKE ? OR description LIKE ?)")
+                like = f"%{query}%"
+                params += [like, like]
+        else:
+            where.append("(filename LIKE ? OR description LIKE ?)")
+            like = f"%{query}%"
+            params += [like, like]
     if tag:
         where.append("(',' || tags || ',') LIKE ?")
         params.append(f"%,{tag.strip()},%")
     sql = f"SELECT * FROM files_meta WHERE {' AND '.join(where)} ORDER BY created_at DESC LIMIT ?"
     params.append(limit)
     return db.fetchall(sql, tuple(params))
+
+
+def _fts_query(raw: str) -> str:
+    safe = "".join(c if c.isalnum() or c.isspace() else " " for c in raw)
+    parts = [p + "*" for p in safe.split() if len(p) >= 2]
+    return " ".join(parts)
 
 
 def delete_file(db: Database, file_id: str) -> bool:

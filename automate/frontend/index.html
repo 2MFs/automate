@@ -307,6 +307,80 @@
           </div>
         </div>
 
+        <!-- Check for updates -->
+        <div class="pt-4 border-t">
+          <label class="block text-xs font-medium text-zinc-700 mb-1">App version</label>
+          <div class="flex gap-2 items-center">
+            <span class="text-sm text-zinc-600 flex-1">
+              <span x-text="status?.version ? 'v' + status.version : '...'"></span>
+              <span x-show="updateInfo?.newer" class="text-amber-600 ml-1">
+                · v<span x-text="updateInfo.latest"></span> available
+              </span>
+            </span>
+            <button @click="checkForUpdates()" :disabled="updateBusy"
+                    class="text-xs border rounded-md px-3 py-1.5 hover:bg-zinc-50">
+              <span x-show="!updateBusy">Check for updates</span>
+              <span x-show="updateBusy">…</span>
+            </button>
+          </div>
+          <div x-show="updateInfo" class="mt-2 text-xs">
+            <div x-show="updateInfo?.error" class="text-red-600" x-text="updateInfo?.error"></div>
+            <div x-show="updateInfo && !updateInfo.error && !updateInfo.newer" class="text-emerald-600">
+              ✓ You're on the latest version.
+            </div>
+            <div x-show="updateInfo?.newer" class="space-y-2 mt-1">
+              <div class="text-zinc-600">A newer version is available.</div>
+              <button x-show="isAndroid && updateInfo?.download_urls?.android"
+                      @click="downloadApk()"
+                      class="w-full bg-zinc-900 text-white rounded-md py-2 text-sm">
+                Download &amp; install APK
+              </button>
+              <a x-show="!isAndroid && updateInfo?.release_notes_url"
+                 :href="updateInfo.release_notes_url" target="_blank"
+                 class="block text-center bg-zinc-900 text-white rounded-md py-2 text-sm">
+                Open release page
+              </a>
+            </div>
+          </div>
+          <details class="mt-2 text-xs text-zinc-500">
+            <summary class="cursor-pointer">Use a CN-friendly mirror</summary>
+            <input x-model="updateMirror" @blur="saveUpdateMirror()"
+                   placeholder="ghproxy.com  (leave blank to use GitHub directly)"
+                   class="w-full mt-1 border rounded-md px-2 py-1 text-[11px] font-mono" />
+          </details>
+        </div>
+
+        <!-- autoMate Cloud sign-in -->
+        <div class="pt-4 border-t">
+          <label class="block text-xs font-medium text-zinc-700 mb-1">autoMate Cloud</label>
+          <div x-show="!cloudInfo?.cloud_configured" class="text-xs text-zinc-500 leading-relaxed">
+            Cloud sync, audio transcription, and public-content extraction are
+            <strong>coming soon</strong> as a paid tier. Until the cloud server
+            is live, all data stays on this device.
+          </div>
+          <div x-show="cloudInfo?.cloud_configured && !cloudInfo?.logged_in" class="space-y-2">
+            <input x-model="cloudLoginForm.email" type="email" placeholder="email"
+                   class="w-full border rounded-md px-2 py-1.5 text-sm" />
+            <input x-model="cloudLoginForm.password" type="password" placeholder="password"
+                   class="w-full border rounded-md px-2 py-1.5 text-sm" />
+            <button @click="cloudLogin()" :disabled="cloudBusy"
+                    class="w-full bg-zinc-900 text-white rounded-md py-2 text-sm">
+              <span x-show="!cloudBusy">Sign in</span>
+              <span x-show="cloudBusy">…</span>
+            </button>
+            <p x-show="cloudResult" class="text-xs"
+               :class="cloudResult?.ok ? 'text-emerald-600' : 'text-red-600'"
+               x-text="cloudResult?.message"></p>
+          </div>
+          <div x-show="cloudInfo?.logged_in" class="text-xs space-y-2">
+            <div class="text-zinc-700">
+              Signed in as <span class="font-medium" x-text="cloudInfo.email"></span>
+              · <span class="px-1.5 py-0.5 rounded bg-zinc-100" x-text="cloudInfo.tier"></span>
+            </div>
+            <button @click="cloudLogout()" class="text-red-600 hover:underline">Sign out</button>
+          </div>
+        </div>
+
         <div class="pt-4 border-t">
           <button @click="settingsOpen = false; active = 'help'"
                   class="text-sm text-blue-600 underline">Open Help &amp; documentation</button>
