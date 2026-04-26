@@ -339,14 +339,29 @@ document.addEventListener("alpine:init", () => {
       return false;
     },
 
+    apkDownloading: false,
+
+    currentVersion() {
+      // Hub status wins (definitive), then the bundled version.js,
+      // then last-resort empty. Lets the UI work in local mode too.
+      return this.status?.version || (window.AUTOMATE_VERSION || "?");
+    },
+
     downloadApk() {
       const url = this.updateInfo?.download_urls?.android;
       if (!url) return;
-      // On Android, the APK navigation triggers the WebView's
-      // DownloadListener (see MainActivity.kt), which downloads the
-      // file and launches the system installer. On other platforms we
-      // would never reach this branch (the button is gated by isAndroid).
+      this.apkDownloading = true;
+      // On Android, navigating to an .apk URL triggers WebView's
+      // DownloadListener (MainActivity.kt) which downloads via
+      // DownloadManager and launches the system installer on
+      // completion. v4.5.5: shouldOverrideUrlLoading explicitly skips
+      // .apk URLs so they actually reach DownloadListener instead of
+      // being kicked to the system browser.
       window.location.href = url;
+      // The download is async (DownloadManager) and progress lives
+      // in Android's notification shade. Re-enable the button after
+      // a beat so a stuck download isn't permanently locked out.
+      setTimeout(() => { this.apkDownloading = false; }, 8000);
     },
 
     async loadCloudInfo() {

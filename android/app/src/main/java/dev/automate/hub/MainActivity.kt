@@ -205,6 +205,14 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val target = req.url
                 val scheme = target.scheme ?: return false
+                // v4.5.5: don't intercept .apk navigations — let WebView
+                // actually start the request so DownloadListener fires
+                // and we can install in-app via FileProvider. Without
+                // this, the user's "Download & install APK" button got
+                // bounced into the system browser instead.
+                val path = target.path ?: ""
+                if (path.endsWith(".apk", ignoreCase = true)) return false
+
                 if (scheme == "http" || scheme == "https" || scheme == "mailto" || scheme == "tel") {
                     val host = target.host ?: ""
                     // Stay in-WebView for the user's own hub URL.

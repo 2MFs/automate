@@ -13,6 +13,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <link rel="stylesheet" href="styles.css" />
+  <script src="version.js"></script>
   <script src="local-store.js"></script>
   <script>
     // Service workers don't run from file:// so this is a no-op in the APK;
@@ -365,10 +366,7 @@
           <label class="block text-xs font-medium text-zinc-700 mb-1">App version</label>
           <div class="flex gap-2 items-center">
             <span class="text-sm text-zinc-600 flex-1">
-              <span x-text="status?.version ? 'v' + status.version : '...'"></span>
-              <span x-show="updateInfo?.newer" class="text-amber-600 ml-1">
-                · v<span x-text="updateInfo.latest"></span> available
-              </span>
+              Current: <span class="font-medium" x-text="'v' + currentVersion()"></span>
             </span>
             <button @click="checkForUpdates()" :disabled="updateBusy"
                     class="text-xs border rounded-md px-3 py-1.5 hover:bg-zinc-50">
@@ -378,15 +376,21 @@
           </div>
           <div x-show="updateInfo" class="mt-2 text-xs">
             <div x-show="updateInfo?.error" class="text-red-600" x-text="updateInfo?.error"></div>
-            <div x-show="updateInfo && !updateInfo.error && !updateInfo.newer" class="text-emerald-600">
-              ✓ You're on the latest version.
+            <div x-show="updateInfo && !updateInfo.error && !updateInfo.newer"
+                 class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-md p-2">
+              ✓ You're already on the latest version (v<span x-text="updateInfo?.latest || currentVersion()"></span>).
             </div>
-            <div x-show="updateInfo?.newer" class="space-y-2 mt-1">
-              <div class="text-zinc-600">A newer version is available.</div>
+            <div x-show="updateInfo?.newer"
+                 class="bg-amber-50 border border-amber-200 rounded-md p-2 space-y-2 mt-1">
+              <div class="text-amber-900">
+                <strong>v<span x-text="updateInfo.latest"></span></strong> is available
+                (you have v<span x-text="currentVersion()"></span>).
+              </div>
               <button x-show="isAndroid && updateInfo?.download_urls?.android"
-                      @click="downloadApk()"
-                      class="w-full bg-zinc-900 text-white rounded-md py-2 text-sm">
-                Download &amp; install APK
+                      @click="downloadApk()" :disabled="apkDownloading"
+                      class="w-full bg-zinc-900 text-white rounded-md py-2 text-sm disabled:opacity-50">
+                <span x-show="!apkDownloading">Download &amp; install in app</span>
+                <span x-show="apkDownloading">Downloading…</span>
               </button>
               <a x-show="!isAndroid && updateInfo?.release_notes_url"
                  :href="updateInfo.release_notes_url" target="_blank"
