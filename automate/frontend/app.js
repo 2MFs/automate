@@ -2,6 +2,8 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("app", () => ({
     tabs: [
       { id: "home",         label: "Home" },
+      { id: "chat",         label: "Chat" },
+      { id: "bots",         label: "Bots" },
       { id: "notes",        label: "Notes" },
       { id: "files",        label: "Files" },
       { id: "reminders",    label: "Reminders" },
@@ -10,14 +12,18 @@ document.addEventListener("alpine:init", () => {
       { id: "models",       label: "Models" },
       { id: "help",         label: "Help" },
     ],
-    // Mobile bottom-nav: 4 most-used + More.
+    // Mobile bottom-nav. Chat is the primary entry now (built-in agent),
+    // Bots is the second (Telegram / 微信 / 企业微信 channels into the
+    // same agent). Everything else lives under More.
     mobileTabs: [
-      { id: "home",      label: "Home",      icon: "🏠" },
-      { id: "notes",     label: "Notes",     icon: "📒" },
-      { id: "files",     label: "Files",     icon: "📁" },
-      { id: "reminders", label: "Reminders", icon: "⏰" },
+      { id: "home",  label: "Home", icon: "🏠" },
+      { id: "chat",  label: "Chat", icon: "💬" },
+      { id: "bots",  label: "Bots", icon: "🤖" },
+      { id: "notes", label: "Notes", icon: "📒" },
     ],
     moreTabs: [
+      { id: "files",        label: "Files",      icon: "📁" },
+      { id: "reminders",    label: "Reminders",  icon: "⏰" },
       { id: "connect",      label: "Connect AI", icon: "🔌" },
       { id: "integrations", label: "Tools",      icon: "🧰" },
       { id: "models",       label: "Models",     icon: "🧠" },
@@ -78,6 +84,7 @@ document.addEventListener("alpine:init", () => {
     connectResult: null,
     showOAuthAdvanced: false,
     integrationFilter: "",
+    botForm: {},
 
     messages: [],
     liveEvents: [],
@@ -154,6 +161,72 @@ document.addEventListener("alpine:init", () => {
       "Create a GitHub issue in <owner>/<repo> titled 'demo from autoMate'",
       "Take a screenshot of my desktop",
     ],
+
+    // ---- v4.3: bots ----
+    botCatalog: [],
+    botInstances: [],
+    activeBotId: null,
+    botFormDirty: false,
+    botBusy: false,
+    botResult: null,
+
+    async loadBots() {
+      try {
+        [this.botCatalog, this.botInstances] = await Promise.all([
+          api("/api/bots/catalog"),
+          api("/api/bots"),
+        ]);
+      } catch (e) { /* no hub */ }
+    },
+    botInstance(id) {
+      return this.botInstances.find(b => b.id === id) || { id, enabled: false, status: "stopped", config_set: false };
+    },
+    openBot(id) {
+      this.activeBotId = id;
+      const meta = this.botCatalog.find(b => b.id === id);
+      if (!meta) return;
+      // Reset draft form per-bot.
+      this.botForm = {};
+      meta.config_fields.forEach(f => { this.botForm[f.name] = ""; });
+      this.botResult = null;
+    },
+    closeBot() {
+      this.activeBotId = null;
+      this.botResult = null;
+    },
+    async saveBot() {
+      if (!this.activeBotId) return;
+      this.botBusy = true;
+      this.botResult = null;
+      try {
+        await api(`/api/bots/${this.activeBotId}/config`, "PUT", { config: this.botForm });
+        this.botResult = { ok: true, message: "Saved." };
+        await this.loadBots();
+      } catch (e) {
+        this.botResult = { ok: false, message: e.message };
+      } finally {
+        this.botBusy = false;
+      }
+    },
+    async toggleBot(id) {
+      const inst = this.botInstance(id);
+      this.botBusy = true;
+      this.botResult = null;
+      try {
+        if (inst.enabled) {
+          await api(`/api/bots/${id}/stop`, "POST");
+          this.botResult = { ok: true, message: "Stopped." };
+        } else {
+          const r = await api(`/api/bots/${id}/start`, "POST");
+          this.botResult = { ok: true, message: `Started · ${r.status}` };
+        }
+        await this.loadBots();
+      } catch (e) {
+        this.botResult = { ok: false, message: e.message };
+      } finally {
+        this.botBusy = false;
+      }
+    },
 
     integrationHints: {
       github:     { label: "Personal Access Token",       url: "https://github.com/settings/tokens/new?scopes=repo,read:user,read:org", hint: "Settings → Developer settings → Personal access tokens (classic). Tick: repo, read:user, read:org." },
@@ -283,6 +356,7 @@ document.addEventListener("alpine:init", () => {
         this.loadNotes(),
         this.loadFiles(),
         this.loadReminders(),
+        this.loadBots(),
       ]);
       this.checkPushEnabled();
     },

@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..agent import AgentLoop
+from ..bots import BotManager
 from ..providers import ProviderManager
 from ..reminders import Scheduler
 from ..settings import PATHS, SERVER
@@ -18,6 +19,7 @@ class AppState:
     registry: ToolRegistry
     agent: AgentLoop
     scheduler: Scheduler
+    bots: BotManager
 
 
 def build_state() -> AppState:
@@ -29,4 +31,9 @@ def build_state() -> AppState:
     agent = AgentLoop(db=db, providers=providers, registry=registry)
     scheduler = Scheduler(db)
     scheduler.start()
-    return AppState(db=db, providers=providers, registry=registry, agent=agent, scheduler=scheduler)
+    bots = BotManager(db=db, agent=agent)
+    bots.restart_enabled()
+    return AppState(
+        db=db, providers=providers, registry=registry,
+        agent=agent, scheduler=scheduler, bots=bots,
+    )

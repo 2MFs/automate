@@ -330,23 +330,46 @@
         </p>
       </div>
 
-      <!-- Plug into your AI — leads to the Connect tab -->
+      <!-- Primary CTA: chat with autoMate's built-in agent -->
+      <button @click="active = 'chat'"
+              class="w-full bg-zinc-900 text-white rounded-2xl p-5 text-left hover:bg-zinc-800 transition flex items-center gap-4">
+        <div class="text-3xl">💬</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-base sm:text-lg">Chat with autoMate</div>
+          <div class="text-xs text-zinc-300 leading-snug mt-0.5">
+            Ask anything — files, notes, reminders, real tools.
+            <span x-show="!status?.active_provider" class="text-amber-300">First, pick a model →</span>
+          </div>
+        </div>
+        <div class="text-2xl">→</div>
+      </button>
+
+      <!-- Bots: alternate entry points -->
       <div>
         <div class="flex items-center justify-between mb-2">
-          <div class="text-xs uppercase tracking-wider text-zinc-500">Plug your AI in</div>
-          <button @click="active = 'connect'" class="text-xs text-blue-600 hover:underline">See all →</button>
+          <div class="text-xs uppercase tracking-wider text-zinc-500">Or chat from these channels</div>
+          <button @click="active = 'bots'" class="text-xs text-blue-600 hover:underline">Configure →</button>
         </div>
         <div class="grid grid-cols-2 gap-2">
-          <template x-for="c in aiClients.slice(0, 4)" :key="c.id">
-            <button @click="pickAiClient(c.id); active = 'connect'"
+          <template x-for="b in botCatalog.slice(0, 4)" :key="b.id">
+            <button @click="active = 'bots'; openBot(b.id)"
                     class="bg-white border rounded-lg p-3 text-left hover:border-zinc-400 transition">
-              <div class="text-xl" x-text="c.icon"></div>
-              <div class="text-sm font-medium leading-tight mt-1" x-text="c.label"></div>
-              <div class="text-[10px] text-zinc-400 uppercase mt-0.5" x-text="c.mode"></div>
+              <div class="text-xs font-medium leading-tight" x-text="b.label"></div>
+              <div class="text-[10px] mt-1"
+                   :class="botInstance(b.id).enabled ? 'text-emerald-600' : 'text-zinc-400'"
+                   x-text="botInstance(b.id).enabled ? '● ' + botInstance(b.id).status : 'not connected'"></div>
             </button>
           </template>
         </div>
       </div>
+
+      <!-- Power-user path: hand autoMate to an external AI -->
+      <details class="text-xs text-zinc-500">
+        <summary class="cursor-pointer hover:text-zinc-700">Power user · use autoMate from Claude Code / Cursor / external AI →</summary>
+        <div class="mt-2">
+          <button @click="active = 'connect'" class="text-blue-600 underline">Open Connect AI tab →</button>
+        </div>
+      </details>
 
       <!-- Quick actions -->
       <div>
@@ -861,7 +884,110 @@
       </div>
     </section>
 
-    <!-- ============ CHAT (legacy debug — hidden from main nav) ============ -->
+    <!-- ============ BOTS ============ -->
+    <section x-show="active === 'bots'">
+      <div class="mb-4">
+        <h1 class="text-xl sm:text-2xl font-semibold">Bots</h1>
+        <p class="text-sm text-zinc-500 mt-1">
+          Connect autoMate to messaging apps. Type in Telegram or 微信,
+          and the same agent that runs the Chat tab answers — your notes,
+          files, tools, all from your phone keyboard.
+        </p>
+      </div>
+
+      <div x-show="storageMode === 'local'" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs sm:text-sm text-amber-900 mb-4">
+        ⚠ Bots run on the hub. Local-only mode can't expose them; connect this device to a hub to use Bots.
+      </div>
+
+      <div x-show="storageMode === 'connected'" class="space-y-3">
+        <template x-for="b in botCatalog" :key="b.id">
+          <div class="bg-white border rounded-xl p-4">
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold text-sm sm:text-base flex items-center gap-2 flex-wrap">
+                  <span x-text="b.label"></span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded"
+                        :class="{
+                          'bg-emerald-100 text-emerald-700': botInstance(b.id).enabled && botInstance(b.id).status === 'running',
+                          'bg-blue-100 text-blue-700':       botInstance(b.id).enabled && botInstance(b.id).status === 'ready',
+                          'bg-zinc-100 text-zinc-500':       !botInstance(b.id).enabled && botInstance(b.id).status === 'stopped',
+                          'bg-red-100 text-red-700':         botInstance(b.id).status === 'error'
+                        }"
+                        x-text="botInstance(b.id).status"></span>
+                </div>
+                <div class="text-xs text-zinc-500 leading-relaxed mt-1" x-text="b.description"></div>
+                <div x-show="b.risks" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 mt-2"
+                     x-text="'⚠ ' + b.risks"></div>
+              </div>
+              <button @click="openBot(b.id)" class="text-xs border rounded-md px-2 py-1 hover:bg-zinc-50 flex-shrink-0">
+                <span x-text="botInstance(b.id).config_set ? 'Edit' : 'Set up'"></span>
+              </button>
+            </div>
+            <div x-show="botInstance(b.id).config_set" class="flex gap-2 pt-2 border-t">
+              <button x-show="!botInstance(b.id).enabled" @click="toggleBot(b.id)" :disabled="botBusy"
+                      class="text-xs bg-zinc-900 text-white rounded-md px-3 py-1.5">
+                Start
+              </button>
+              <button x-show="botInstance(b.id).enabled" @click="toggleBot(b.id)" :disabled="botBusy"
+                      class="text-xs border rounded-md px-3 py-1.5 hover:bg-zinc-50">
+                Stop
+              </button>
+              <span x-show="botInstance(b.id).last_error" class="text-xs text-red-600 leading-snug self-center"
+                    x-text="botInstance(b.id).last_error"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Bot config modal -->
+      <div x-show="activeBotId" x-cloak x-transition.opacity
+           class="fixed inset-0 bg-black/30 sm:grid sm:place-items-center z-20" @click.self="closeBot()">
+        <div class="bg-white sm:rounded-xl sm:shadow-xl w-full sm:max-w-md p-4 sm:p-6 max-h-screen overflow-y-auto">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-semibold text-base"
+                x-text="botCatalog.find(b => b.id === activeBotId)?.label"></h2>
+            <button @click="closeBot()" class="text-zinc-400 hover:text-zinc-700">×</button>
+          </div>
+          <p class="text-xs text-zinc-500 mb-3 leading-relaxed"
+             x-text="botCatalog.find(b => b.id === activeBotId)?.description"></p>
+          <a x-show="botCatalog.find(b => b.id === activeBotId)?.docs_url"
+             :href="botCatalog.find(b => b.id === activeBotId)?.docs_url" target="_blank"
+             class="text-xs text-blue-600 underline mb-4 inline-block">Docs →</a>
+          <div class="space-y-3">
+            <template x-for="f in (botCatalog.find(b => b.id === activeBotId)?.config_fields || [])" :key="f.name">
+              <div>
+                <label class="block text-xs text-zinc-500 mb-1" x-text="f.label + (f.required ? ' *' : '')"></label>
+                <input :type="f.kind === 'password' ? 'password' : 'text'"
+                       x-model="botForm[f.name]"
+                       :placeholder="f.hint || ''"
+                       class="w-full border rounded-md px-2 py-2 font-mono text-xs" />
+                <div x-show="f.hint" class="text-[10px] text-zinc-400 mt-0.5 leading-snug" x-text="f.hint"></div>
+              </div>
+            </template>
+          </div>
+          <button @click="saveBot()" :disabled="botBusy"
+                  class="w-full mt-4 bg-zinc-900 text-white rounded-md px-3 py-2.5 text-sm font-medium disabled:opacity-50">
+            <span x-show="!botBusy">Save</span>
+            <span x-show="botBusy">…</span>
+          </button>
+          <div x-show="botResult" class="text-xs mt-3 p-3 rounded-md"
+               :class="botResult?.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'">
+            <span x-text="(botResult?.ok ? '✓ ' : '✕ ') + botResult?.message"></span>
+          </div>
+          <p x-show="activeBotId === 'wechat_oa' || activeBotId === 'wecom'"
+             class="text-xs text-zinc-500 mt-4 leading-relaxed border-t pt-3">
+            Webhook URL for the platform's backend:
+            <code class="bg-zinc-100 px-1 py-0.5 rounded text-[11px] block mt-1 break-all"
+                  x-text="(connectInfo?.base_url || '<your-public-url>') + '/api/bots/' + activeBotId + '/webhook'"></code>
+            <span class="text-amber-700">Needs to be reachable from the public internet</span> —
+            run autoMate behind a tunnel (ngrok / Cloudflare Tunnel / our relay) or
+            on a public host.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CHAT ============ -->
     <section x-show="active === 'chat'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2 bg-white border rounded-xl flex flex-col h-[70vh]">
         <div class="px-4 py-3 border-b flex items-center justify-between">

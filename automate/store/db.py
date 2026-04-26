@@ -117,6 +117,16 @@ CREATE TABLE IF NOT EXISTS push_keys (
   vapid_public    TEXT NOT NULL,
   vapid_subject   TEXT NOT NULL DEFAULT 'mailto:admin@automate.local'
 );
+
+-- v4.3: bot channels — Telegram / 微信公众号 / 企业微信 / 个人微信
+CREATE TABLE IF NOT EXISTS bots (
+  id              TEXT PRIMARY KEY,             -- bot kind: 'telegram', 'wechat_oa', 'wecom', 'wechat_personal'
+  enabled         INTEGER NOT NULL DEFAULT 0,
+  config_enc      TEXT NOT NULL DEFAULT '',     -- encrypted JSON blob: tokens, secrets, callback urls
+  status          TEXT NOT NULL DEFAULT 'stopped',
+  last_error      TEXT,
+  updated_at      REAL NOT NULL
+);
 """
 
 
