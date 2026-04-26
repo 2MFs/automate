@@ -1,16 +1,16 @@
 # autoMate
 
-> **A smart NAS for AI.** Your warehouse: notes · files · reminders ·
-> memory · 30+ tools. Plug any LLM in. We don't make the chat — we make
-> the storage and tool library behind it.
+> **A smart NAS for AI.** Notes · files · reminders · memory · 40+ tools.
+> Plug it into OpenClaw / Claude Desktop / Cursor / Cline as a tool
+> source, or use it standalone via its built-in web chat.
 
 ```
-   ┌─ Claude Code ──┐                    ┌─ notes / memory ──── survives every chat
-   ├─ Cursor / Cline├──── MCP ────┐      ├─ files ──────────── your file vault
-   ├─ Kimi K2 / GPT ├──── HTTP ───┤      ├─ reminders ──────── push to your phone
-   ├─ Ollama / web  ├──── bridge ─┤      ├─ memory ─────────── cross-session facts
-   └─ your scripts  ┘             │      │
-                                  ▼      ▼
+   ┌─ OpenClaw ─────┐                      ┌─ notes / memory ── survives every chat
+   ├─ Claude Desktop├──── MCP ────┐        ├─ files ─────────── your file vault (NAS)
+   ├─ Cursor / Cline├──── HTTP ───┤        ├─ reminders ─────── push to your phone
+   ├─ Kimi / GPT    ├──── bridge ─┤        ├─ memory ────────── cross-session facts
+   └─ your scripts  ┘             │        ├─ search.find ───── BM25 over notes+files
+                                  ▼        │
                           ┌──────────────────┐    ┌─ shell · script · browser
                           │     autoMate     │ ── ┤  desktop · 31 SaaS APIs
                           │  (your machine)  │    └─ your real Chrome (extension)
@@ -25,39 +25,54 @@ Every AI vendor wants to be your chat tool. Most can call tools.
 **None of them remember anything across vendors, store your files, or
 ping your phone when something matters.**
 
-autoMate is the layer behind the chat: a warehouse you own, with a
-short snippet you paste into whatever AI you already use. From now on,
-**that AI** can write into your notes, drop files, schedule reminders,
-and call your real-world tools — and tomorrow's chat tool can read all
-of it back the same way.
+autoMate is the layer behind the chat: a warehouse you own. Pick a
+chat client you like (OpenClaw for IM, Claude Desktop for serious
+work, Cursor for code), point it at autoMate via MCP, and **that
+client** can write into your notes, drop files, schedule reminders,
+search your library, and call your real-world tools — and tomorrow's
+client can read all of it back the same way.
 
-| You're using… | autoMate gives that AI… |
-|---|---|
-| Kimi web chat / ChatGPT | A local hub it calls into for tools, notes, files |
-| Claude Code | Same hub, accessed via MCP |
-| Cursor / Cline | Same hub, also via MCP |
-| Local Ollama in terminal | A bridge script that Ollama can shell out to |
-| Your phone (APK / PWA) | Your data in your pocket — even when the laptop is off |
+## Two ways to use it
 
-## Two levels of "running it"
-
-| Level | Storage | Best for |
+| Mode | Who's the brain | When |
 |---|---|---|
-| **Local-only** (phone APK / PWA) | IndexedDB on the device | Quick notes, while away from the laptop |
-| **Hub** (laptop / NAS / Docker) | SQLite + filesystem + 30+ tools | The full warehouse: tools, files, push reminders |
+| **As a tool inside another AI client** | Your client (OpenClaw / Claude / Cursor / ...) | Most use cases — IM, coding, research |
+| **Standalone via autoMate's web chat** | autoMate's own agent loop | Quick local queries, no other client |
 
-Sync between them is opt-in. See [docs/sync.md](./docs/sync.md).
+Same backend. Same data. Pick the entry point.
+
+## Connecting to OpenClaw / Claude Desktop / Cursor / Cline (v4.5.7)
+
+After install, open **Settings → Connect to AI clients** and click
+**"Copy install text"**. You get a single markdown blob with the
+URL + token already filled in, and per-client sections for OpenClaw,
+Claude Desktop, Cursor, Cline, generic MCP, and non-MCP gateways.
+
+Three ways to use it:
+
+- Read it and edit your client's config file by hand.
+- **Paste it into another AI** — "Cursor, here's autoMate, set it up
+  for me." The text is written so an AI reader can find the right
+  section and edit the right config.
+- For OpenClaw specifically, paste into your OpenClaw config under
+  `bundle-mcp` — the section spells it out.
+
+After the client picks up the new server, it gets all autoMate's
+tools (`search.find`, `notes.read`, `files.list`, `audio.transcribe`,
+...) plus a top-level `automate` tool that runs autoMate's own
+agent loop on demand.
+
+See [docs/channels.md](./docs/channels.md) for details.
 
 ## Install
 
 | Path | Get | When |
 |---|---|---|
-| `pip install 'automate-hub[full]'` | Python package | Have Python, want it small |
+| `pip install automate-hub` | Python package | Have Python, want it small |
 | Standalone binary (Win / macOS / Linux) | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | No Python, double-click |
 | Docker | `docker run -p 8765:8765 ghcr.io/yuruotong1/automate:latest` | Headless box / NAS |
 | Browser extension | [`extension/`](./extension/) | Drive your real Chrome |
-| **Android APK** | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | Native phone app, works **standalone** in local mode |
-| iOS / "any phone" | Open hub URL → Add to Home Screen | PWA, works on every phone |
+| Android APK | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | Optional viewer for the hub |
 
 After install:
 
@@ -66,46 +81,17 @@ automate          # double-click on Windows/macOS does the same thing
 ```
 
 Browser opens to `http://127.0.0.1:8765`. The wizard walks you through
-picking a model and pasting a key. ~2 minutes.
-
-## Connect your other AI
-
-Open the **Connect AI** tab, copy the snippet that matches your client.
-Four modes:
-
-| Mode      | Who it's for                                                |
-|-----------|--------------------------------------------------------------|
-| **MCP**   | Claude Code · Cursor · Cline · Kimi K2 · any MCP host        |
-| **HTTP**  | ChatGPT custom GPTs · n8n · Make · your own scripts          |
-| **Bridge**| Tool-less LLMs (basic Ollama, web chat) — relay shell script |
-| **OpenAPI** | Agents that can self-discover schemas (`/openapi.json`)    |
-
-That AI now has your hub's full tool catalog as native function calls.
-
-## Use it on your phone
-
-The phone is a **drive** that holds the lightweight bits (notes, memory)
-and a **viewer** for the rest of the warehouse. Three install paths:
-
-1. **Android APK** (real native app) — `autoMate-android.apk` from the
-   release. Works **offline** for notes / memory. Tap the banner to sync
-   with a hub on your laptop or a relay.
-2. **PWA on Android** — open the hub URL in Chrome → Add to Home Screen.
-3. **PWA on iOS** — open the hub URL in Safari → Share → Add to Home
-   Screen. (Apple does not allow non-Store apps; PWA is the iOS path.
-   Web Push works on iOS 16.4+.)
-
-See [docs/mobile.md](./docs/mobile.md) for the install steps.
+picking a model, pasting a key, and (optionally) wiring up an AI client.
 
 ## What's in the box
 
 **Personal data**
-- `notes.*` — markdown documents with tags, search, pinning. Local on the
-  device or on a hub.
-- `files.*` — content-addressed blob vault, deduplication, multipart
-  upload. Hub-only (phones don't have the storage budget).
-- `reminders.*` — scheduler thread fires Web Push to your PWA. Hub-only.
-- `memory.*` — long-term key-value facts that any AI can read/write.
+- `notes.*` — markdown documents with tags, search, pinning
+- `files.*` — content-addressed blob vault, deduplication, **configurable storage path** (point it at an external SSD or NAS mount)
+- `search.find` — Coze-style hybrid retrieval (SQLite FTS5 BM25) across notes + files in one call
+- `reminders.*` — scheduler thread fires Web Push to your PWA
+- `memory.*` — long-term key-value facts that any AI can read/write
+- `audio.transcribe` — voice → text via Tencent ASR / OpenAI Whisper, with custom vocabulary mined from your notes (Pro tier)
 
 **Local executors**
 - `shell.*`, `script.*` (Python/Bash/Node), `desktop.*` (pyautogui)
@@ -123,26 +109,41 @@ Mistral · Cohere · OpenRouter · Groq · Together · Fireworks · DeepInfra ·
 DeepSeek · Moonshot Kimi · 通义 · 豆包 · GLM · 百川 · Yi · MiniMax · 阶跃 ·
 混元 · 硅基流动 · Ollama · LM Studio · any OpenAI-compatible.
 
+## IM channels (WeChat / Telegram / WhatsApp / ...)
+
+We don't ship per-platform bots ourselves. Run [OpenClaw](https://github.com/openclaw/openclaw)
+alongside autoMate — it has the official Tencent WeChat plugin for
+*微信个人助手* (no account-takeover, no ban risk), plus Telegram /
+WhatsApp / Slack / Discord / Signal / iMessage. autoMate plugs in as
+its tool source via the MCP setup above. The user talks in their
+chat platform → OpenClaw routes → OpenClaw's agent calls autoMate
+when it needs your data.
+
+The legacy bots in `automate/bots/` (telegram / wechat_oa / wecom)
+are frozen but still ship for backward compatibility.
+
 ## Project layout
 
 ```
 autoMate/
 ├─ automate/                 # the package
-│  ├─ server/                # FastAPI app, REST + WS + MCP bridge
+│  ├─ server/                # FastAPI app, REST + WS + MCP-over-HTTP
+│  │  └─ mcp_bridge.py       # FastMCP exposure, mounted at /mcp/
 │  ├─ agent/                 # NL → tool-call loop
 │  ├─ providers/             # LLM provider catalog + clients
 │  ├─ tools/                 # shell · script · browser · desktop · bx
 │  │                         # plus notes · files · reminders · memory
+│  │                         # · search · audio
 │  ├─ integrations/          # 31 SaaS connectors
 │  ├─ frontend/              # static SPA — PWA installable
-│  │  └─ local-store.js      # IndexedDB store for offline mode
-│  ├─ notes.py · files.py · reminders.py · memory.py · push.py
-│  ├─ relay.py               # reverse-tunnel client for the relay
-│  └─ extension_bus.py       # bridge to the Chrome extension
+│  │  └─ local-store.js      # IndexedDB store: notes / memory / files
+│  ├─ channels.py            # external IM gateway bridge
+│  ├─ audio.py               # transcription provider abstraction
+│  ├─ auth.py                # autoMate Cloud session (Pro tier hook)
+│  └─ {notes,files,reminders,memory,push}.py
 ├─ android/                  # native Android WebView app (APK)
 ├─ extension/                # Chrome MV3 extension
-├─ packaging/                # PyInstaller spec
-├─ docs/{relay,mobile,sync}.md
+├─ docs/{channels,cloud,relay,mobile,sync}.md
 ├─ Dockerfile
 └─ pyproject.toml
 ```
@@ -154,15 +155,21 @@ autoMate/
   key at `~/.automate/secret.key` (chmod 600).
 - LLM calls go directly from autoMate to the provider you chose. Nothing
   else sees them.
-- Phone in local mode: data is in IndexedDB on your device. Never
-  leaves until you sync.
+- The MCP endpoint at `/mcp/` requires a Bearer token. Treat it like a
+  password — anyone with this token can call autoMate's tools, including
+  `shell.exec`. Regenerate from Settings → Channels.
+- autoMate Cloud (paid tier) is opt-in. Without `AUTOMATE_CLOUD_URL` set,
+  no data leaves your machine. See [docs/cloud.md](./docs/cloud.md) for
+  the open-client / closed-server boundary.
 
 ## Status
 
-v4.2.0 — local-mode storage on phone (notes + memory in IndexedDB),
-manual hub sync, native Android APK with bundled SPA. iOS via PWA.
-Multi-platform distribution: pip · standalone binary · Docker · Chrome
-extension · Android APK · iOS PWA.
+**v4.5.7** — autoMate is now an MCP-over-HTTP tool source for any
+OpenClaw / Claude Desktop / Cursor / Cline / Cline / Kimi setup. Settings
+gives you a one-click "Copy install text" for any AI client. Personal
+infra is filled out: Coze-style retrieval, audio transcription,
+configurable storage path, in-app auto-update, login hook for the
+upcoming autoMate Cloud Pro tier.
 
 中文版: [README_CN.md](./README_CN.md)
 
