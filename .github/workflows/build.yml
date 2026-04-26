@@ -184,6 +184,13 @@ jobs:
         with: { distribution: "temurin", java-version: "17" }
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.7"
+      - name: Show Gradle / SDK versions
+        run: |
+          gradle --version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" || true
       - name: Stamp versionName from tag
         working-directory: android
         run: |
@@ -193,7 +200,7 @@ jobs:
           grep versionName app/build.gradle
       - name: Build debug APK
         working-directory: android
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
       - name: Rename for release
         working-directory: android
         run: |
