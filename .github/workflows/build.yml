@@ -126,49 +126,6 @@ jobs:
           name: autoMate-extension
           path: autoMate-extension.zip
 
-  pages:
-    # Publishes the SPA to GitHub Pages so the Android TWA APK has a public
-    # HTTPS origin to wrap. Best-effort: if Pages can't be enabled (org
-    # restrictions, missing permission), the workflow continues and the
-    # release ships without an APK / Pages URL.
-    name: Deploy PWA to GitHub Pages
-    needs: resolve
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      pages: write
-      id-token: write
-      contents: read
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Stage PWA + asset links
-        run: |
-          mkdir -p site/.well-known
-          cp -r automate/frontend/* site/
-          cp site/index.html site/404.html
-          cat > site/.well-known/assetlinks.json <<'EOF'
-          [{
-            "relation": ["delegate_permission/common.handle_all_urls"],
-            "target": {
-              "namespace": "android_app",
-              "package_name": "dev.automate.hub",
-              "sha256_cert_fingerprints": ["PLACEHOLDER"]
-            }
-          }]
-          EOF
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true        # auto-enable Pages on first run
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./site
-      - id: deploy
-        uses: actions/deploy-pages@v4
-
   android:
     # Builds a self-contained Android APK (Kotlin + WebView + bundled SPA).
     # No Pages dependency, no public manifest needed — the SPA is in the
