@@ -4,20 +4,22 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>autoMate · smart NAS for AI</title>
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
-  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
   <meta name="theme-color" content="#18181b" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <link rel="stylesheet" href="/styles.css" />
-  <script src="/local-store.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="local-store.js"></script>
   <script>
-    if ("serviceWorker" in navigator) {
+    // Service workers don't run from file:// so this is a no-op in the APK;
+    // it only kicks in when the SPA is served over http(s).
+    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+        navigator.serviceWorker.register("service-worker.js").catch(() => {});
       });
     }
   </script>
@@ -1141,6 +1143,6 @@
 
   </main>
 
-  <script src="/app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
