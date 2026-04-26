@@ -58,22 +58,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadShell() {
-        webView.loadUrl("file:///android_asset/index.html")
-        // After the page loads, inject the saved hub URL into localStorage so
-        // the SPA's API calls go to the right backend. If no URL has been
-        // saved yet, prompt the user.
+        // Just load the SPA. If there's a saved hub URL, inject it so the
+        // SPA boots in connected mode. If there isn't, the SPA detects this
+        // (via /api/health failing) and shows a yellow "Local mode" banner
+        // with a hub-URL input — no forced prompt. Phone-only users with
+        // notes + memory work fine without ever filling that in.
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         val saved = prefs.getString(KEY_HUB, null)
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                if (saved.isNullOrBlank()) {
-                    promptForHub()
-                } else {
-                    injectHub(saved)
-                }
+                if (!saved.isNullOrBlank()) injectHub(saved)
             }
         }
+        webView.loadUrl("file:///android_asset/index.html")
     }
 
     private fun injectHub(url: String) {

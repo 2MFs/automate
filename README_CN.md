@@ -1,235 +1,126 @@
 # autoMate
 
-> 给任何大模型一双手的调度中枢。
-
-autoMate 是一个本地小服务,自带浏览器界面。安装完打开 `http://127.0.0.1:8765`,
-配上你喜欢的大模型 API Key,授权要让它操作的 SaaS 账号 — 从此任何能说 **HTTP**
-或 **MCP** 的客户端(Claude Code、Cursor、Cline、Kimi K2、你自己的脚本)都
-可以把一段自然语言交给 autoMate,由它去**规划、选工具、抽参数、跑命令**,
-落地到你的机器、你的浏览器和 30+ 第三方 API 上。
+> **AI 的智能 NAS。** 你的仓库:笔记 · 文件 · 提醒 · 记忆 · 30+ 工具。
+> 接进任何大模型。我们不做聊天 — 我们做聊天背后的**仓储 + 工具库**。
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  浏览器 UI · http://127.0.0.1:8765                               │
-│  模型配置 · 工具市场 · 实时对话 · 历史记录                       │
-└────────────────┬─────────────────────────────────────────────────┘
-                 │  HTTP · WebSocket
-┌────────────────▼─────────────────────────────────────────────────┐
-│  统一接入层                                                        │
-│  ┌──────────────┬─────────────────────────────────────────────┐  │
-│  │  REST API    │  POST /api/agent/run                        │  │
-│  │  WebSocket   │  /api/sessions/ws  (执行流实时推送)         │  │
-│  │  MCP (stdio) │  `automate mcp`  Claude Code / Cursor       │  │
-│  └──────────────┴─────────────────────────────────────────────┘  │
-├──────────────────────────────────────────────────────────────────┤
-│  Agent 内核                                                       │
-│  · 解析自然语言 · 选工具 · 抽参数 · 反馈循环                    │
-├──────────────────────────────────────────────────────────────────┤
-│  工具                                                              │
-│  ┌──────────┬───────────────┬──────────────────┬──────────────┐  │
-│  │ shell    │ browser       │ bx.* (你正在用    │ 集成市场     │  │
-│  │ script   │ (Playwright,  │ 的浏览器,通过    │ github       │  │
-│  │ desktop  │ 起新标签页)   │ Chrome 扩展)     │ notion 等    │  │
-│  └──────────┴───────────────┴──────────────────┴──────────────┘  │
-├──────────────────────────────────────────────────────────────────┤
-│  ~/.automate/  · SQLite + Fernet 加密凭据                         │
-└──────────────────────────────────────────────────────────────────┘
+   ┌─ Claude Code ──┐                    ┌─ notes/memory ───── 跨会话生存
+   ├─ Cursor / Cline├──── MCP ────┐      ├─ files ──────────── 文件库
+   ├─ Kimi K2 / GPT ├──── HTTP ───┤      ├─ reminders ──────── 推到手机
+   ├─ Ollama / 网页 ├──── bridge ─┤      ├─ memory ─────────── 长期记忆
+   └─ 你的脚本      ┘             │      │
+                                  ▼      ▼
+                          ┌──────────────────┐    ┌─ shell · script · browser
+                          │     autoMate     │ ── ┤  desktop · 31 SaaS APIs
+                          │   (你的机器)     │    └─ 你正在用的 Chrome (扩展)
+                          └────────┬─────────┘
+                                   ▼
+                          ~/.automate/  · SQLite + Fernet 加密
 ```
 
-English: [README.md](./README.md)
+## 这是什么
 
-## 为什么需要 autoMate
+每家 AI 厂商都在抢"聊天入口"。大多数也能调工具。**但没有任何一家能把你
+所有用过的 AI 串起来 — 跨厂商记忆、本地存大文件、时间到了主动推手机。**
 
-你已经有趁手的 AI 编码助手了。它擅长**规划**,但伸不进**你的** Notion、
-**你的** GitHub、**你的** Shell、**你那个已经登录好的浏览器** — autoMate
-就是来填这块空缺的执行器。它跑在你自己的机器上,凭据从不离开本地,对外只
-暴露一个干净的统一接口,任何大模型客户端都能直接调用。
+autoMate 是聊天背后的那一层:**你自己拥有的仓库**。一段话粘到你正在用的
+AI 里 — 从此**那个 AI** 能往你笔记里写、把文件丢进来、设置提醒、调用真实
+工具。明天换一家 AI,数据照样能读出来。
 
-- **大脑自带。** 25+ 模型供应商目录:OpenAI、Anthropic、Gemini、Kimi、通义、
-  DeepSeek、豆包、智谱 GLM、Yi、MiniMax、混元、百川、阶跃、Mistral、Grok、
-  OpenRouter、Groq、Together、Fireworks、Ollama、LM Studio、vLLM……随时换。
-- **一键 OAuth。** GitHub、Notion、Slack、Linear、飞书、钉钉 都是点一下跳转
-  授权,不用手抄环境变量。其他集成走 API Key,也是一键保存,加密落盘。
-- **本地真权限。** `shell.exec` 用 autoMate 进程的权限直接跑命令;`script.run`
-  能写 Python / Bash / Node 落盘后执行;`desktop.*` 接 pyautogui。
-- **两种浏览器自动化。** `browser.*` 用 Playwright 起一个干净的 Chromium
-  (适合无登录态任务);`bx.*` 通过 Chrome 扩展接你**正在用的浏览器** —
-  你的标签页、你的 Cookie、你的登录态都能直接用。
-- **一进程三入口。** REST + WebSocket + MCP 共用同一个工具注册表 + 同一个
-  Agent。一份代码,三种姿势调。
+| 你正在用 | autoMate 给那个 AI 的 |
+|---|---|
+| Kimi 网页版 / ChatGPT | 一个本地 hub 让它去读写工具/笔记/文件 |
+| Claude Code | 同上,通过 MCP |
+| Cursor / Cline | 同上,通过 MCP |
+| 终端里的 Ollama | 一个 bridge 脚本,Ollama 调 shell 就行 |
+| 你的手机 (APK / PWA) | 你的数据装在口袋里 — 电脑关机也能用 |
+
+## 两种"运行级别"
+
+| 级别 | 存储位置 | 适合 |
+|---|---|---|
+| **纯本地**(手机 APK / PWA) | 设备本地 IndexedDB | 临时记笔记,电脑不在身边 |
+| **Hub**(电脑 / NAS / Docker) | SQLite + 文件系统 + 30+ 工具 | 完整仓库:工具、文件、推送 |
+
+两者之间的同步是**手动的、可选的**。详见 [docs/sync.md](./docs/sync.md)。
 
 ## 安装
 
-挑哪种顺手用哪种。
+| 路径 | 拿什么 | 适合 |
+|---|---|---|
+| `pip install 'automate-hub[full]'` | Python 包 | 有 Python 想轻量 |
+| 独立二进制(Win/Mac/Linux) | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | 没 Python,双击就跑 |
+| Docker | `docker run -p 8765:8765 ghcr.io/yuruotong1/automate:latest` | NAS / 服务器 |
+| 浏览器扩展 | [`extension/`](./extension/) | 接管你正在用的 Chrome |
+| **Android APK** | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | 原生手机 app,**纯本地模式可独立用** |
+| iOS / 任意手机 | 浏览器打开 hub URL → 添加到主屏幕 | PWA,所有手机都通 |
 
-### 1. pip(开发者推荐)
+装完跑 `automate`,浏览器自动开。配模型 + 粘 key,2 分钟搞定。
 
-```bash
-pip install 'automate-hub[full]'
-automate serve
-```
+## 接你常用的那个 AI
 
-| extra      | 添加什么                                                            |
-| ---------- | ----------------------------------------------------------------- |
-| `mcp`      | stdio MCP 入口(`automate mcp`),给 Claude Code / Cursor / Cline 挂载。 |
-| `browser`  | Playwright。装完跑一次 `python -m playwright install chromium`。     |
-| `desktop`  | pyautogui。无显示器服务器跳过即可。                                   |
-| `full`     | 上面全装。                                                           |
+打开 **Connect AI** 标签,挑你那家的 snippet 复制。四种模式:
 
-### 2. 独立二进制(无需 Python)
+| 模式 | 适合 |
+|---|---|
+| **MCP** | Claude Code · Cursor · Cline · Kimi K2 · 任意 MCP 客户端 |
+| **HTTP** | ChatGPT GPTs · n8n · Make · 你自己的脚本 |
+| **Bridge** | 不会调工具的 LLM(基础 Ollama、网页聊天)— 一个 shell 中转脚本 |
+| **OpenAPI** | 能读 schema 的 agent (`/openapi.json`) |
 
-到 [Releases 页面](https://github.com/yuruotong1/autoMate/releases) 下载对应
-平台的包(Windows / macOS Apple Silicon / Linux),解压跑 `./automate/automate serve`。
+之后那个 AI 就拥有 hub 的全部工具目录,当原生 function calls 用。
 
-### 3. Docker
+## 手机端怎么用
 
-```bash
-docker run --rm -p 8765:8765 -v automate-data:/data \
-  ghcr.io/yuruotong1/automate:latest
-```
+手机是个**轻量驱动器**,装本地化数据(笔记/记忆),其余远程接 hub。三种装法:
 
-或者自己 build:`docker build -t automate-hub . && docker run -p 8765:8765 automate-hub`。
+1. **Android APK** — 从 release 下 `autoMate-android.apk`。**纯本地模式**就能记
+   笔记。点黄色横幅可同步到电脑 hub 或中转。
+2. **Android PWA** — Chrome 打开 hub URL → 添加到主屏幕。
+3. **iOS PWA** — Safari 打开 hub URL → 分享 → 添加到主屏幕。
+   (苹果不让侧载,所以 iOS 只有 PWA 这条路。iOS 16.4+ 支持 Web Push。)
 
-### 4. 浏览器扩展(用 `bx.*` 工具的多一步)
+详细步骤:[docs/mobile.md](./docs/mobile.md)。
 
-任意方式装好 autoMate 后,打开 `chrome://extensions`,开**开发者模式**,
-点 **加载已解压的扩展程序**,选项目里的 `extension/` 文件夹。工具栏图标
-徽章变成绿色 **ON** 就连上了。详见 [`extension/README.md`](./extension/README.md)。
+## 仓库里有什么
 
-## 启动
+**个人数据**
+- `notes.*` — Markdown 文档,标签、搜索、置顶。本地或 hub 都行。
+- `files.*` — 内容寻址文件库,SHA-256 去重,流式上传。仅 hub。
+- `reminders.*` — 后台 scheduler + Web Push 推手机。仅 hub。
+- `memory.*` — 长期 K/V 事实,任何 AI 都能读写。
 
-```bash
-automate serve            # 浏览器 UI + REST + WebSocket  http://127.0.0.1:8765
-automate mcp              # 把工具暴露成 stdio MCP 服务
-automate doctor           # 看路径、已配模型、已连集成
-```
+**本地执行器**
+- `shell.*`、`script.*`(Python/Bash/Node)、`desktop.*`(pyautogui)
+- `browser.*`(Playwright,起干净 Chromium)
+- `bx.*`(通过 [Chrome 扩展](./extension/README.md) 接管你正在用的浏览器)
 
-数据在 `~/.automate/`,凭据用 `~/.automate/secret.key`(0600)对称加密。
-想换路径就 `AUTOMATE_HOME=/path`。
-
-## 使用
-
-### 浏览器里
-
-打开 Chat 标签页,输入 `给当前仓库跑 git status 并总结改动`。事件流会展示
-模型挑选 `shell.exec` → 工具结果回填 → 最终总结。所有 run 都落到 History。
-
-### 从 Claude Code / Cursor / Cline / Kimi 调(MCP)
-
-在客户端 MCP 配置里加:
-
-```json
-{
-  "mcpServers": {
-    "automate": { "command": "automate", "args": ["mcp"] }
-  }
-}
-```
-
-上游模型就会看到一个顶层的 `automate(prompt)` 工具,以及每一个具体工具
-(`shell.exec`、`bx.click`、`notion_search` ……)。
-
-- 想让 autoMate **自己规划**,调 `automate(prompt="...")`。
-- 上游模型已经规划好步骤了,直接调具体工具,autoMate 只负责执行。
-
-这就是和 Claude Code / Kimi 的分工:**它们做规划,我们做执行**。
-
-### 从任意 HTTP 客户端
-
-```bash
-# 自然语言请求 — autoMate 自己规划并执行。
-curl -X POST http://127.0.0.1:8765/api/agent/run \
-  -H 'content-type: application/json' \
-  -d '{"prompt": "在 foo/bar 仓库新建一个标题为「冒烟测试」的 issue"}'
-
-# 已经知道要调哪个工具,直接来。
-curl -X POST http://127.0.0.1:8765/api/execute/shell.exec \
-  -H 'content-type: application/json' \
-  -d '{"args": {"command": "git status"}}'
-```
-
-执行流走 WebSocket:`ws://127.0.0.1:8765/api/sessions/ws`,发 `{"prompt": "..."}`,
-收到的是 `thinking` / `tool_call` / `tool_result` / `final` 这几种事件对象。
-
-## 已支持的能力
-
-**LLM 供应商(25 家)** — OpenAI · Anthropic · Google Gemini · xAI Grok ·
-Mistral · Cohere · OpenRouter · Groq · Together · Fireworks · DeepInfra ·
-DeepSeek · 月之暗面 Kimi · 通义千问 · 字节豆包 · 智谱 GLM · 百川 · 01.AI Yi ·
-MiniMax · 阶跃星辰 · 腾讯混元 · 硅基流动 · Ollama · LM Studio · 任意
-OpenAI 兼容端点。
-
-**SaaS 集成(31 家)** — GitHub · GitLab · Gitee · Notion · Slack · Linear ·
-Jira · Confluence · Trello · Asana · Monday.com · HubSpot · Airtable · Stripe ·
-Shopify · Telegram · Discord · Microsoft Teams · Zoom · Twitter/X · SendGrid ·
+**SaaS 集成 — 31 家**:GitHub · GitLab · Gitee · Notion · Slack · Linear ·
+Jira · Confluence · Trello · Asana · Monday · HubSpot · Airtable · Stripe ·
+Shopify · Telegram · Discord · MS Teams · Zoom · Twitter/X · SendGrid ·
 Mailchimp · Twilio · Sentry · 飞书 · 钉钉 · 企业微信 · 微信公众号 · 微博 ·
 语雀 · 高德地图。
 
-**本地执行器** — `shell.exec` · `shell.cwd` · `script.run` · `script.list` ·
-`script.read` · `desktop.screenshot` · `desktop.click` · `desktop.type` ·
-`desktop.press` · `desktop.size`。
+**LLM 供应商 — 25 家**:OpenAI · Anthropic · Gemini · xAI Grok · Mistral ·
+Cohere · OpenRouter · Groq · Together · Fireworks · DeepInfra · DeepSeek ·
+Kimi · 通义 · 豆包 · 智谱 GLM · 百川 · Yi · MiniMax · 阶跃 · 混元 · 硅基流动 ·
+Ollama · LM Studio · 任意 OpenAI 兼容端点。
 
-**无头浏览器**(Playwright) — `browser.open` · `browser.click` · `browser.type` ·
-`browser.extract` · `browser.screenshot` · `browser.close`。
+## 隐私
 
-**接管你的真浏览器**(Chrome 扩展) — `bx.tabs` · `bx.open` · `bx.activate` ·
-`bx.close` · `bx.navigate` · `bx.screenshot` · `bx.click` · `bx.type` ·
-`bx.extract` · `bx.scroll` · `bx.eval`。
-
-## 项目结构
-
-```
-autoMate/
-├─ automate/              # 主包
-│  ├─ server/             # FastAPI 应用、路由、MCP bridge
-│  │  └─ api/             # REST + WebSocket 端点
-│  ├─ agent/              # 自然语言 → 工具调用循环
-│  ├─ providers/          # 模型供应商目录 + 客户端
-│  ├─ tools/              # shell · script · browser · desktop · bx · 适配器
-│  ├─ integrations/       # 31 个 SaaS 连接器
-│  ├─ oauth/              # 授权码流程 + 供应商目录
-│  ├─ store/              # SQLite + Fernet 加密
-│  ├─ frontend/           # 静态 SPA (Tailwind + Alpine,无需构建)
-│  ├─ extension_bus.py    # Chrome 扩展的 sync ↔ async 桥
-│  ├─ settings.py · cli.py · version.py
-├─ extension/             # Chrome MV3 扩展(加载已解压的扩展程序)
-├─ packaging/             # PyInstaller spec
-├─ Dockerfile
-└─ pyproject.toml
-```
-
-## 加新工具
-
-```python
-# automate/tools/myfeature.py
-from .registry import Tool, ToolRegistry
-
-def register(reg: ToolRegistry) -> None:
-    reg.register(Tool(
-        name="myfeature.do",
-        description="做那件事。",
-        parameters={"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]},
-        handler=lambda x: {"echoed": x},
-        category="custom",
-    ))
-```
-
-然后在 `automate/tools/registry.py` 的 `build_default_registry` 里调一下
-`register(reg)` 即可。
-
-## 加新 LLM 供应商
-
-在 `automate/providers/catalog.py` 追加一个 `ProviderSpec`。如果它兼容 OpenAI
-chat-completions 协议(国内厂商基本都兼容),其他什么都不用改 — UI 重载就能
-看到它。
+- 服务器默认绑 `127.0.0.1`,需要联网访问要 `--host 0.0.0.0`。
+- 凭据全部 Fernet 加密,密钥在 `~/.automate/secret.key`(0600)。
+- LLM 调用直接从 autoMate 走到你选的厂商,中间没人偷看。
+- 手机本地模式:数据在浏览器 IndexedDB,你不点同步就出不去。
 
 ## 状态
 
-v1.0 — 服务、Agent 循环、MCP bridge、31 个集成全部接入,GitHub / Notion /
-Slack / Linear / 飞书 / 钉钉 OAuth 已实现,其他点一下跳转。无头浏览器走
-Playwright,真浏览器走 Chrome 扩展。多端分发:pip · 独立二进制 · Docker。
-Python 3.10–3.12 实测通过。
+v4.2.0 — 手机本地存储(笔记 + 记忆走 IndexedDB)、手动 hub 同步、
+内置 SPA 的原生 Android APK。iOS 走 PWA。多端发布:pip · 独立二进制 ·
+Docker · Chrome 扩展 · Android APK · iOS PWA。
+
+English: [README.md](./README.md)
 
 ## License
 
-MIT,见 `LICENSE`。
+MIT。

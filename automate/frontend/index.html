@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>autoMate · scheduling hub</title>
+  <title>autoMate · smart NAS for AI</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -13,6 +13,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <link rel="stylesheet" href="/styles.css" />
+  <script src="/local-store.js"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
@@ -28,15 +29,15 @@
        class="fixed inset-0 bg-black/50 grid place-items-center z-30 p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden">
       <div class="bg-gradient-to-br from-zinc-900 to-zinc-700 text-white p-8">
-        <div class="text-3xl font-bold mb-2">Your AI's brain.</div>
+        <div class="text-3xl font-bold mb-2">A smart NAS for AI.</div>
         <p class="text-zinc-300 text-sm leading-relaxed mb-3">
-          autoMate is the personal-infrastructure layer behind whichever AI
-          you already use. Notes, files, reminders, and 30+ tools — all
-          living on your machine, all callable from Kimi / Claude / GPT /
-          Ollama via one snippet.
+          autoMate is your AI's <strong>warehouse</strong> — files, notes,
+          reminders, memory, and 30+ tools the AI can call. It runs on your
+          own machine. Any LLM (Kimi, Claude, GPT, local Ollama) plugs in
+          through one snippet.
         </p>
         <p class="text-zinc-400 text-xs leading-relaxed">
-          Don't switch chat apps. Switch what's behind them.
+          We don't make a chat. We make the storage / tool library behind it.
         </p>
       </div>
 
@@ -240,6 +241,24 @@
     </div>
   </div>
 
+  <!-- Local-mode banner — visible only when no hub is connected -->
+  <div x-show="storageMode === 'local'" x-cloak
+       class="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-900 flex items-center justify-between gap-3 flex-wrap">
+    <div>
+      <strong>📱 Local mode</strong> — your notes &amp; memory live only on this device.
+      Tools, files and reminders need a hub on a real computer.
+    </div>
+    <div class="flex gap-2 items-center">
+      <input x-model="hubBaseInput" placeholder="http://laptop-ip:8765"
+             class="border rounded px-2 py-0.5 text-[11px] font-mono w-44" />
+      <button @click="syncWithHub()" :disabled="syncing"
+              class="bg-zinc-900 text-white text-[11px] px-2 py-0.5 rounded">
+        <span x-show="!syncing">Sync &amp; connect</span>
+        <span x-show="syncing">Syncing…</span>
+      </button>
+    </div>
+  </div>
+
   <!-- Top bar -->
   <header class="border-b bg-white sticky top-0 z-10">
     <div class="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
@@ -247,7 +266,11 @@
         <div class="w-7 h-7 rounded-lg bg-zinc-900 text-white grid place-items-center font-bold text-sm">a</div>
         <div>
           <div class="font-semibold text-sm">autoMate</div>
-          <div class="text-[11px] text-zinc-500" x-text="status?.version ? `v${status.version}` : ''"></div>
+          <div class="text-[11px] text-zinc-500">
+            <span x-text="status?.version ? `v${status.version}` : 'v4.2.0'"></span>
+            <span x-show="storageMode === 'local'" class="text-amber-600 ml-1">· local</span>
+            <span x-show="storageMode === 'connected'" class="text-emerald-600 ml-1">· connected</span>
+          </div>
         </div>
       </div>
       <nav class="flex items-center gap-1 text-sm">
@@ -275,7 +298,16 @@
 
     <!-- ============ MODELS ============ -->
     <section x-show="active === 'models'">
-      <div class="flex items-end justify-between mb-6">
+      <div x-show="storageMode === 'local'" class="bg-white border rounded-xl p-12 text-center">
+        <div class="text-3xl mb-2">🧠</div>
+        <h2 class="font-semibold mb-1">Model picking happens on the hub</h2>
+        <p class="text-sm text-zinc-500 max-w-md mx-auto mb-4">
+          The agent loop and provider catalog live on the hub. From your
+          phone you don't need to pick a model — your AI of choice (Kimi,
+          Claude, GPT, …) calls the hub directly via the snippets.
+        </p>
+      </div>
+      <div x-show="storageMode === 'connected'" class="flex items-end justify-between mb-6">
         <div>
           <h1 class="text-2xl font-semibold">Models</h1>
           <p class="text-sm text-zinc-500 mt-1">Configure any LLM provider. autoMate uses one as the brain — others can be swapped any time.</p>
@@ -396,7 +428,16 @@
 
     <!-- ============ INTEGRATIONS ============ -->
     <section x-show="active === 'integrations'">
-      <div class="flex items-end justify-between gap-4 mb-6">
+      <div x-show="storageMode === 'local'" class="bg-white border rounded-xl p-12 text-center">
+        <div class="text-3xl mb-2">🧰</div>
+        <h2 class="font-semibold mb-1">Tools need a hub</h2>
+        <p class="text-sm text-zinc-500 max-w-md mx-auto mb-4">
+          Integrations call third-party APIs (GitHub, Notion, Slack, …) on
+          your behalf and need to hold encrypted credentials. That stays on a
+          real computer, not the phone.
+        </p>
+      </div>
+      <div x-show="storageMode === 'connected'" class="flex items-end justify-between gap-4 mb-6">
         <div>
           <h1 class="text-2xl font-semibold">Tool Marketplace</h1>
           <p class="text-sm text-zinc-500 mt-1">
@@ -566,7 +607,17 @@
 
     <!-- ============ FILES ============ -->
     <section x-show="active === 'files'">
-      <div class="mb-5 flex items-end justify-between gap-3">
+      <div x-show="storageMode === 'local'" class="bg-white border rounded-xl p-12 text-center">
+        <div class="text-3xl mb-2">📁</div>
+        <h2 class="font-semibold mb-1">Files need a hub</h2>
+        <p class="text-sm text-zinc-500 max-w-md mx-auto mb-4">
+          The file vault stores big binaries (videos, audio, datasets) that
+          would crush a phone's local storage. Spin up a hub on a real
+          computer and sync this device to it.
+        </p>
+        <button @click="active='help'" class="text-xs underline">How do I do that?</button>
+      </div>
+      <div x-show="storageMode === 'connected'" class="mb-5 flex items-end justify-between gap-3">
         <div>
           <h1 class="text-2xl font-semibold">Files</h1>
           <p class="text-sm text-zinc-500 mt-1">
@@ -601,7 +652,17 @@
 
     <!-- ============ REMINDERS ============ -->
     <section x-show="active === 'reminders'">
-      <div class="mb-5">
+      <div x-show="storageMode === 'local'" class="bg-white border rounded-xl p-12 text-center">
+        <div class="text-3xl mb-2">⏰</div>
+        <h2 class="font-semibold mb-1">Reminders need a hub</h2>
+        <p class="text-sm text-zinc-500 max-w-md mx-auto mb-4">
+          The scheduler thread that fires reminders and pushes them to your
+          phone runs on the hub — phone OSes won't let an app schedule
+          reliably in the background. Connect to a hub to enable reminders.
+        </p>
+        <button @click="active='help'" class="text-xs underline">Set up a hub →</button>
+      </div>
+      <div x-show="storageMode === 'connected'" class="mb-5">
         <h1 class="text-2xl font-semibold">Reminders</h1>
         <p class="text-sm text-zinc-500 mt-1">
           Time-based push to your phone. Any AI can set them; the scheduler fires them via Web Push.
@@ -764,7 +825,16 @@
 
     <!-- ============ CONNECT ANY AI ============ -->
     <section x-show="active === 'connect'">
-      <div class="mb-6">
+      <div x-show="storageMode === 'local'" class="bg-white border rounded-xl p-12 text-center">
+        <div class="text-3xl mb-2">🔌</div>
+        <h2 class="font-semibold mb-1">Connect snippets need a hub</h2>
+        <p class="text-sm text-zinc-500 max-w-md mx-auto mb-4">
+          The whole point of "Connect AI" is wiring an upstream LLM to your
+          hub's tool catalog. Your hub is the warehouse — without one running,
+          there's nothing for snippets to point at.
+        </p>
+      </div>
+      <div x-show="storageMode === 'connected'" class="mb-6">
         <h1 class="text-2xl font-semibold">Use autoMate from any AI</h1>
         <p class="text-sm text-zinc-500 mt-2 leading-relaxed max-w-2xl">
           autoMate isn't only for the chat in this window. The same tools are

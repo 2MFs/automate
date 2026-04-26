@@ -55,6 +55,15 @@ document.addEventListener("alpine:init", () => {
     copiedKey: null,
     hubBaseInput: "",
 
+    // ---- v4.2: smart-NAS local-mode ----
+    // mode: 'connected' (talking to a hub), 'local' (IndexedDB only), or null
+    // (still detecting). The mode flips to 'connected' as soon as any /api/*
+    // call succeeds; otherwise we stay in 'local' and the SPA serves notes +
+    // memory out of IndexedDB.
+    storageMode: null,
+    syncing: false,
+    lastSync: null,
+
     // ---- v5: notes ----
     notes: [],
     notesQuery: "",
@@ -159,14 +168,31 @@ document.addEventListener("alpine:init", () => {
     ],
 
     async init() {
-      await this.refreshAll();
-      this.connectWS();
-      setInterval(() => this.refreshStatus(), 5000);
-      // First-run welcome: auto-open if the user hasn't dismissed it yet AND
-      // no provider has an API key configured.
+      // First, try to talk to a hub. If it works, we're in connected mode.
+      // If not, we drop to local mode and the SPA serves notes/memory from
+      // IndexedDB. The user can flip to connected mode any time.
+      try {
+        await api("/api/health");
+        this.storageMode = "connected";
+      } catch {
+        this.storageMode = "local";
+      }
+      this.lastSync = parseFloat(localStorage.getItem("automate-last-sync") || "0") || null;
+
+      if (this.storageMode === "connected") {
+        await this.refreshAll();
+        this.connectWS();
+        setInterval(() => this.refreshStatus(), 5000);
+      } else {
+        // Local mode: only load what we have locally.
+        await this.loadNotes();
+      }
+
       const dismissed = localStorage.getItem("automate-welcomed") === "1";
-      if (!dismissed && this.status && this.status.providers_configured === 0) {
-        this.welcomeOpen = true;
+      if (!dismissed) {
+        // Show welcome unless they're already configured.
+        const configured = this.status && this.status.providers_configured > 0;
+        if (!configured) this.welcomeOpen = true;
       }
     },
 
@@ -223,9 +249,15 @@ document.addEventListener("alpine:init", () => {
       this.checkPushEnabled();
     },
 
-    // ---- v5: notes ----
+    // ---- notes (local + connected) ----
     async loadNotes() {
-      this.notes = await api(`/api/notes?query=${encodeURIComponent(this.notesQuery)}&tag=${encodeURIComponent(this.notesTag)}`);
+      if (this.storageMode === "local") {
+        this.notes = await window.localStore.listNotes({
+          query: this.notesQuery, tag: this.notesTag,
+        });
+      } else {
+        this.notes = await api(`/api/notes?query=${encodeURIComponent(this.notesQuery)}&tag=${encodeURIComponent(this.notesTag)}`);
+      }
     },
     newNote() {
       this.activeNote = { id: null };
@@ -236,22 +268,75 @@ document.addEventListener("alpine:init", () => {
       this.noteDraft = { title: n.title, body: n.body, tags: n.tags, pinned: !!n.pinned };
     },
     async saveNote() {
+      const isLocal = this.storageMode === "local";
       if (this.activeNote?.id) {
-        const updated = await api(`/api/notes/${this.activeNote.id}`, "PATCH", this.noteDraft);
-        this.activeNote = updated;
+        this.activeNote = isLocal
+          ? await window.localStore.updateNote(this.activeNote.id, this.noteDraft)
+          : await api(`/api/notes/${this.activeNote.id}`, "PATCH", this.noteDraft);
       } else {
-        const created = await api("/api/notes", "POST", this.noteDraft);
-        this.activeNote = created;
+        this.activeNote = isLocal
+          ? await window.localStore.createNote(this.noteDraft)
+          : await api("/api/notes", "POST", this.noteDraft);
       }
       await this.loadNotes();
     },
     async deleteNote() {
       if (!this.activeNote?.id) return;
       if (!confirm("Delete this note?")) return;
-      await api(`/api/notes/${this.activeNote.id}`, "DELETE");
+      if (this.storageMode === "local") {
+        await window.localStore.deleteNote(this.activeNote.id);
+      } else {
+        await api(`/api/notes/${this.activeNote.id}`, "DELETE");
+      }
       this.activeNote = null;
       this.noteDraft = { title: "", body: "", tags: "", pinned: false };
       await this.loadNotes();
+    },
+
+    // ---- one-shot sync: push every local note/memory to a hub, then pull. ----
+    async syncWithHub() {
+      const hub = (this.hubBaseInput || hubBase()).trim().replace(/\/$/, "");
+      if (!hub) {
+        alert("Enter a hub URL first.");
+        return;
+      }
+      this.syncing = true;
+      try {
+        // Push local → hub. We use last-write-wins by upserting on the hub.
+        const snapshot = await window.localStore.exportAll();
+        for (const n of snapshot.notes) {
+          await fetch(`${hub}/api/notes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: n.title, body: n.body, tags: n.tags, pinned: !!n.pinned,
+            }),
+          });
+        }
+        for (const m of snapshot.memory) {
+          await fetch(`${hub}/api/memory`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: m.key, value: m.value }),
+          });
+        }
+        // Pull hub → local. Merge by updated_at.
+        const remoteNotes = await (await fetch(`${hub}/api/notes`)).json();
+        const remoteMemory = await (await fetch(`${hub}/api/memory`)).json();
+        await window.localStore.importMerge({
+          schema: 1, notes: remoteNotes, memory: remoteMemory,
+        });
+        // Persist this hub URL and flip mode if not already connected.
+        localStorage.setItem("automate-hub-base", hub);
+        localStorage.setItem("automate-last-sync", String(Date.now() / 1000));
+        this.lastSync = Date.now() / 1000;
+        alert(`Synced ${snapshot.notes.length} notes + ${snapshot.memory.length} memory items.\nReloading…`);
+        location.reload();
+      } catch (e) {
+        alert("Sync failed: " + e.message);
+      } finally {
+        this.syncing = false;
+      }
     },
 
     // ---- v5: files ----

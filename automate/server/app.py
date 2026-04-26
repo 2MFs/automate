@@ -18,7 +18,7 @@ from .state import AppState, build_state
 def create_app() -> FastAPI:
     state = build_state()
     app = FastAPI(title="autoMate", version=__version__,
-                  description="Scheduling hub for any LLM. Browser UI + MCP/HTTP entry points.")
+                  description="A smart NAS for AI — notes, files, reminders, memory, tools. Plug in any LLM via MCP / HTTP / bridge.")
 
     app.state.app_state = state
 

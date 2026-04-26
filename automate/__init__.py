@@ -1,8 +1,9 @@
-"""autoMate — a scheduling hub that gives any LLM hands.
+"""autoMate — a smart NAS for AI.
 
-Browser-server architecture. Other AI assistants (Claude Code, Kimi K2, Cursor,
-Cline...) call autoMate via MCP or HTTP; autoMate plans, picks tools, fills in
-parameters, and executes against the local machine, browsers, and 30+ SaaS APIs.
+Your AI's warehouse: notes, files, reminders, memory, and 30+ tools. Lives on
+your machine; any LLM (Claude Code, Kimi, GPT, local Ollama, …) plugs in via
+MCP / HTTP / a one-line bridge. We don't make the chat — we make the storage
+and tool library behind it.
 """
 
 from .version import __version__

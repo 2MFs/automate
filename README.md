@@ -1,18 +1,16 @@
 # autoMate
 
-> **Your AI's brain.** Notes · files · reminders · 30+ tools — your data,
-> your machine. Bring any AI.
-
-autoMate is the personal-infrastructure layer that sits behind whichever
-AI you already use. Don't switch chat apps; switch what's behind them.
+> **A smart NAS for AI.** Your warehouse: notes · files · reminders ·
+> memory · 30+ tools. Plug any LLM in. We don't make the chat — we make
+> the storage and tool library behind it.
 
 ```
-   ┌─ Claude Code ──┐                  ┌─ notes.*           ← survives sessions
-   ├─ Cursor / Cline├──── MCP ────┐    ├─ files.*           ← your file vault
-   ├─ Kimi K2 / GPT ├──── HTTP ───┤    ├─ reminders.*       ← push to your phone
-   ├─ Ollama / web  ├──── bridge ─┤    ├─ memory.*          ← cross-session facts
-   └─ your scripts  ┘             │    │
-                                  ▼    ▼
+   ┌─ Claude Code ──┐                    ┌─ notes / memory ──── survives every chat
+   ├─ Cursor / Cline├──── MCP ────┐      ├─ files ──────────── your file vault
+   ├─ Kimi K2 / GPT ├──── HTTP ───┤      ├─ reminders ──────── push to your phone
+   ├─ Ollama / web  ├──── bridge ─┤      ├─ memory ─────────── cross-session facts
+   └─ your scripts  ┘             │      │
+                                  ▼      ▼
                           ┌──────────────────┐    ┌─ shell · script · browser
                           │     autoMate     │ ── ┤  desktop · 31 SaaS APIs
                           │  (your machine)  │    └─ your real Chrome (extension)
@@ -21,23 +19,34 @@ AI you already use. Don't switch chat apps; switch what's behind them.
                           ~/.automate/  · SQLite + Fernet
 ```
 
-## What's actually different
+## What's the deal
 
-Every AI chat tool has chat. Most can call tools. None of them remember
-anything across vendors, store your files, ping your phone when something
-matters, or expose all of that to **whatever** chat tool you happen to
-open tomorrow.
+Every AI vendor wants to be your chat tool. Most can call tools.
+**None of them remember anything across vendors, store your files, or
+ping your phone when something matters.**
 
-| You do this in… | autoMate gives you… |
+autoMate is the layer behind the chat: a warehouse you own, with a
+short snippet you paste into whatever AI you already use. From now on,
+**that AI** can write into your notes, drop files, schedule reminders,
+and call your real-world tools — and tomorrow's chat tool can read all
+of it back the same way.
+
+| You're using… | autoMate gives that AI… |
 |---|---|
-| Kimi web chat | A local hub Kimi calls into for tools, notes, files |
+| Kimi web chat / ChatGPT | A local hub it calls into for tools, notes, files |
 | Claude Code | Same hub, accessed via MCP |
 | Cursor / Cline | Same hub, also via MCP |
 | Local Ollama in terminal | A bridge script that Ollama can shell out to |
-| Your phone PWA | The same data, in your pocket — plus reminders that push to you |
+| Your phone (APK / PWA) | Your data in your pocket — even when the laptop is off |
 
-The data lives in `~/.automate/`. Your files, notes, reminders, and tool
-credentials never leave the machine unless you opt in to the relay.
+## Two levels of "running it"
+
+| Level | Storage | Best for |
+|---|---|---|
+| **Local-only** (phone APK / PWA) | IndexedDB on the device | Quick notes, while away from the laptop |
+| **Hub** (laptop / NAS / Docker) | SQLite + filesystem + 30+ tools | The full warehouse: tools, files, push reminders |
+
+Sync between them is opt-in. See [docs/sync.md](./docs/sync.md).
 
 ## Install
 
@@ -47,8 +56,8 @@ credentials never leave the machine unless you opt in to the relay.
 | Standalone binary (Win / macOS / Linux) | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | No Python, double-click |
 | Docker | `docker run -p 8765:8765 ghcr.io/yuruotong1/automate:latest` | Headless box / NAS |
 | Browser extension | [`extension/`](./extension/) | Drive your real Chrome |
-| Android APK | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | Phone (TWA wrapper around the PWA) |
-| iOS / "any phone" | Open the hub URL → Add to Home Screen | PWA, works on every phone |
+| **Android APK** | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | Native phone app, works **standalone** in local mode |
+| iOS / "any phone" | Open hub URL → Add to Home Screen | PWA, works on every phone |
 
 After install:
 
@@ -56,8 +65,8 @@ After install:
 automate          # double-click on Windows/macOS does the same thing
 ```
 
-Browser opens to `http://127.0.0.1:8765`. The welcome wizard walks you
-through picking a model and pasting a key. ~2 minutes.
+Browser opens to `http://127.0.0.1:8765`. The wizard walks you through
+picking a model and pasting a key. ~2 minutes.
 
 ## Connect your other AI
 
@@ -75,26 +84,28 @@ That AI now has your hub's full tool catalog as native function calls.
 
 ## Use it on your phone
 
-The UI is a Progressive Web App. Two paths:
+The phone is a **drive** that holds the lightweight bits (notes, memory)
+and a **viewer** for the rest of the warehouse. Three install paths:
 
-1. **Same WiFi** (free): on your laptop, run
-   `automate serve --host 0.0.0.0`. Find the LAN IP. On your phone,
-   browse to `http://<your-ip>:8765` → menu → **Add to Home Screen**.
-2. **Anywhere** (with relay): your laptop dials out to a relay,
-   the phone connects via the relay's HTTPS URL. See
-   [docs/relay.md](./docs/relay.md). Hosted relay is on the roadmap;
-   self-hosting is documented.
+1. **Android APK** (real native app) — `autoMate-android.apk` from the
+   release. Works **offline** for notes / memory. Tap the banner to sync
+   with a hub on your laptop or a relay.
+2. **PWA on Android** — open the hub URL in Chrome → Add to Home Screen.
+3. **PWA on iOS** — open the hub URL in Safari → Share → Add to Home
+   Screen. (Apple does not allow non-Store apps; PWA is the iOS path.
+   Web Push works on iOS 16.4+.)
 
-The phone is a controller; your laptop runs the actual tools (a phone
-sandbox can't run shell or drive your real browser).
+See [docs/mobile.md](./docs/mobile.md) for the install steps.
 
 ## What's in the box
 
-**Personal data (v5, new)**
-- `notes.*` — markdown documents with tags, search, pinning
-- `files.*` — content-addressed blob vault, deduplication, multipart upload
-- `reminders.*` — scheduler thread fires Web Push to your PWA
-- `memory.*` — long-term key-value facts that any AI can read/write
+**Personal data**
+- `notes.*` — markdown documents with tags, search, pinning. Local on the
+  device or on a hub.
+- `files.*` — content-addressed blob vault, deduplication, multipart
+  upload. Hub-only (phones don't have the storage budget).
+- `reminders.*` — scheduler thread fires Web Push to your PWA. Hub-only.
+- `memory.*` — long-term key-value facts that any AI can read/write.
 
 **Local executors**
 - `shell.*`, `script.*` (Python/Bash/Node), `desktop.*` (pyautogui)
@@ -123,15 +134,15 @@ autoMate/
 │  ├─ tools/                 # shell · script · browser · desktop · bx
 │  │                         # plus notes · files · reminders · memory
 │  ├─ integrations/          # 31 SaaS connectors
-│  ├─ oauth/                 # OAuth flows
-│  ├─ store/                 # SQLite + Fernet vault
 │  ├─ frontend/              # static SPA — PWA installable
+│  │  └─ local-store.js      # IndexedDB store for offline mode
 │  ├─ notes.py · files.py · reminders.py · memory.py · push.py
-│  ├─ relay.py               # reverse-tunnel client for the optional relay
+│  ├─ relay.py               # reverse-tunnel client for the relay
 │  └─ extension_bus.py       # bridge to the Chrome extension
-├─ extension/                # Chrome MV3 extension (load unpacked)
+├─ android/                  # native Android WebView app (APK)
+├─ extension/                # Chrome MV3 extension
 ├─ packaging/                # PyInstaller spec
-├─ docs/relay.md             # relay protocol + self-host guide
+├─ docs/{relay,mobile,sync}.md
 ├─ Dockerfile
 └─ pyproject.toml
 ```
@@ -143,16 +154,15 @@ autoMate/
   key at `~/.automate/secret.key` (chmod 600).
 - LLM calls go directly from autoMate to the provider you chose. Nothing
   else sees them.
-- `shell.exec` and `script.run` run with the autoMate process's full
-  privileges. Treat it like any automation tool: only run prompts you'd
-  run yourself.
+- Phone in local mode: data is in IndexedDB on your device. Never
+  leaves until you sync.
 
 ## Status
 
-v5.0 — personal-infra layer (notes / files / reminders / memory) with
-Web Push to PWA. Multi-platform distribution: pip · standalone binary ·
-Docker · Chrome extension · Android APK · iOS PWA. Relay protocol
-specified, hosted relay roadmapped.
+v4.2.0 — local-mode storage on phone (notes + memory in IndexedDB),
+manual hub sync, native Android APK with bundled SPA. iOS via PWA.
+Multi-platform distribution: pip · standalone binary · Docker · Chrome
+extension · Android APK · iOS PWA.
 
 中文版: [README_CN.md](./README_CN.md)
 

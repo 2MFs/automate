@@ -1,10 +1,9 @@
-"""autoMate CLI.
+"""autoMate CLI — a smart NAS for AI.
 
-Three commands:
-
-    automate serve            # start the BS hub (browser auto-opens)
-    automate mcp              # expose the same tools over stdio MCP
+    automate serve            # start the warehouse (browser auto-opens)
+    automate mcp              # expose every tool/store over stdio MCP
     automate doctor           # show paths, configured providers, integrations
+    automate relay <url>      # open a reverse tunnel for remote access
 """
 from __future__ import annotations
 
@@ -87,7 +86,7 @@ def _doctor(_args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="automate", description=f"autoMate v{__version__} — scheduling hub for any LLM")
+    parser = argparse.ArgumentParser(prog="automate", description=f"autoMate v{__version__} — a smart NAS for AI")
     sub = parser.add_subparsers(dest="cmd")
 
     p_serve = sub.add_parser("serve", help="run the web UI + HTTP API + WebSocket")
