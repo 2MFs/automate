@@ -220,6 +220,9 @@ document.addEventListener("alpine:init", () => {
     // ---- v4.5.6: channels bridge ----
     bridgeInfo: null,
     bridgeTokenShown: false,
+    // ---- v4.5.7: connect-instructions copy text ----
+    connectInfo: null,
+    connectCopied: false,
 
     async loadBridge() {
       try {
@@ -229,8 +232,28 @@ document.addEventListener("alpine:init", () => {
         // wherever the SPA is currently loaded from.
         const base = (hubBase() || location.origin).replace(/\/$/, "");
         this.bridgeInfo = { ...info, inbox_url: base + info.inbox_url_path };
+        // Also prefetch the connect instructions so the Copy button is
+        // instant — the markdown is small (a few KB) and we want zero
+        // latency between click and clipboard.
+        const ci = await api(`/api/channels/connect-instructions?public_url=${encodeURIComponent(base)}`);
+        this.connectInfo = { ...ci, base };
       } catch (e) {
         this.bridgeInfo = null;        // local-only mode: no bridge to show
+        this.connectInfo = null;
+      }
+    },
+
+    async copyConnectInstructions() {
+      if (!this.connectInfo?.markdown) return;
+      try {
+        await navigator.clipboard.writeText(this.connectInfo.markdown);
+        this.connectCopied = true;
+        setTimeout(() => { this.connectCopied = false; }, 2000);
+      } catch (e) {
+        this.showNotice({
+          icon: "📋", title: "Clipboard blocked",
+          body: "Your browser blocked clipboard access. Open the connection details below and copy the URL + token manually.",
+        });
       }
     },
     async copyBridge(field) {

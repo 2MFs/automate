@@ -1,162 +1,119 @@
-# Channels — let WeChat / Telegram / etc. talk to autoMate
+# Channels — connect autoMate to OpenClaw / Claude / Cursor / etc.
 
-> **Status (v4.5.6):** the inbound bridge is shipped — autoMate
-> exposes one HTTP endpoint that any gateway can POST messages to.
-> The first supported gateway is **OpenClaw**, which has an official
-> Tencent-maintained WeChat plugin (connects to *微信个人助手*, not
-> personal WeChat — no account-takeover, no ban risk).
+> **v4.5.7:** the architecture is now: autoMate is **a tool source**.
+> OpenClaw (or Claude Desktop, Cursor, Cline, ...) stays the agent;
+> autoMate plugs in via MCP and gives that agent access to the
+> user's notes, files, reminders, memory, audio transcription, and
+> 30+ other tools. The agent decides when to call autoMate.
+>
+> This replaces the v4.5.6 "autoMate intercepts all messages"
+> design, which conflated channel handling with reasoning. The
+> v4.5.6 inbox endpoint is still shipped for non-MCP gateways
+> (n8n, custom scripts) but is no longer the recommended path.
 
-## Why a gateway instead of building it ourselves
+## Two ways to use autoMate
 
-autoMate's job is files / notes / agent reasoning. Reimplementing
-WeChat / WhatsApp / Telegram protocols (each with its own quirks,
-auth dance, anti-spam, media uploads, and ToS minefield) is a
-full-time job for a team. Several open-source projects already do
-this well, and OpenClaw in particular has Tencent's blessing for
-WeChat. So we run autoMate alongside one of those, and they each do
-what they're best at.
+**1. As a tool inside another AI client** (the main path)
 
 ```
-┌─────────┐  IM platform protocol   ┌─────────┐  HTTP/JSON   ┌──────────┐
-│ WeChat  │ ◄──────────────────────►│ OpenClaw│ ◄───────────►│ autoMate │
-│ Telegram│                          │ gateway │              │  (this)  │
-│   ...   │                          └─────────┘              └──────────┘
-└─────────┘                                                       │
-                                                                  ▼
-                                                            ┌──────────┐
-                                                            │ files /  │
-                                                            │ notes /  │
-                                                            │ agent /  │
-                                                            │  tools   │
-                                                            └──────────┘
+WeChat / Telegram / etc.       OpenClaw / Claude / Cursor
+        ▼                              ▼
+        └─── (channel plugin) ────►   agent ────► MCP ────► autoMate
+                                                  │            │
+                                                  ▼            ▼
+                                           tools live      files / notes /
+                                           there too       memory /
+                                                           reminders / agent
 ```
 
-OpenClaw handles the *channel* (the chat platform). autoMate handles
-the *intelligence* (what to do with the message). They talk over a
-small HTTP contract.
+The user talks to OpenClaw (or whatever client) on their preferred
+chat platform. The agent in OpenClaw decides "this needs the user's
+files / notes / schedule" and calls autoMate's tools. autoMate
+returns the data; the agent composes the reply.
 
-## The bridge protocol
+**2. autoMate's own web chat** (the lightweight path)
 
-One endpoint, Bearer-auth'd. Token is auto-generated on first install
-and shown in **Settings → Channels** for you to copy into the
-gateway.
+Open the autoMate hub URL in a browser. Use the built-in chat tab.
+autoMate's own agent runs the loop — handy for quick queries
+without an external client.
+
+Both modes share the same backend. Tools, files, notes, memory, and
+the agent loop are the same. Pick whichever entry point fits the
+moment.
+
+## Connecting in mode 1
+
+Open **autoMate Settings → Connect to AI clients** and click
+**"Copy install text (all clients)"**. You get a single markdown
+blob with the URL + token already filled in, plus per-client
+sections for OpenClaw, Claude Desktop, Cursor, Cline, and generic
+MCP clients.
+
+Three ways to use that text:
+
+- **Read it yourself** and edit your client's config file by hand.
+  Each section tells you the file path and exact JSON to add.
+- **Paste it into another AI** ("Cursor, here's autoMate, set it up
+  for me") — the text is written so an AI can read the section that
+  matches its own client and edit the right config file.
+- **For OpenClaw specifically**, paste into your OpenClaw config
+  under `bundle-mcp` — the section spells it out.
+
+After the client picks up the new server, it'll see all autoMate's
+tools (`search.find`, `notes.read`, `files.list`, ...) plus a
+top-level `automate` tool that runs autoMate's own agent loop on
+demand.
+
+## The MCP endpoint
+
+```
+POST {hub}/mcp/                       # note trailing slash
+Authorization: Bearer {token}
+Content-Type:  application/json
+Accept:        application/json, text/event-stream
+```
+
+Standard streamable-HTTP MCP — initialize, then `tools/list` and
+`tools/call`. autoMate exposes ~40 tools out of the box.
+
+The token is the same Bearer token used by the v4.5.6 inbox
+endpoint. Stored in the existing `settings` KV table; rotate via
+**Settings → Channels → Regenerate**.
+
+## The legacy HTTP inbox (v4.5.6)
+
+For tools that don't speak MCP — n8n, Zapier, custom Python /
+Node scripts, iOS Shortcuts — there's still a flat HTTP inbox:
 
 ```http
 POST /api/channels/inbox
 Authorization: Bearer <token>
-Content-Type: application/json
 
-{
-  "channel":  "wechat",          // any string identifying the platform
-  "user_id":  "wxid_abc123",     // opaque, must be stable per IM user
-  "text":     "find my Tokyo notes",
-  "context":  { ... optional, gateway-specific ... }
-}
+{"channel": "wechat", "user_id": "wxid_x", "text": "find my notes"}
+
+→ {"text": "...", "run_id": "...", "ms": 1842}
 ```
 
-Response (200):
+Kept around because it's strictly easier than MCP for non-AI
+gateways. But for AI clients, MCP is cleaner.
 
-```json
-{
-  "text":   "Found 1 note: 'Tokyo trip 2026'.",
-  "run_id": "9f2d...",
-  "ms":     1842
-}
-```
+## What about v4.5.6's "OpenClaw outbound webhook" plan?
 
-Errors are returned with proper status codes so the gateway can
-render something useful to the IM user:
+That was the wrong direction. The honest take:
+- OpenClaw is an agent.
+- autoMate is also an agent (with its own LLM, memory, etc.).
+- Two agents fighting over one message stream is a bad pattern.
+- Treating autoMate as a *tool* that OpenClaw's agent calls when
+  needed is the clean pattern. That's what v4.5.7 ships.
 
-| Status | Meaning |
-|--------|---------|
-| 401    | Missing or invalid Bearer token |
-| 400    | Empty `text` |
-| 503    | Agent failed (usually no LLM provider configured) |
+The v4.5.6 inbox endpoint isn't deleted — it still works for cases
+where you genuinely want autoMate to be the only brain (a custom
+Telegram bot that just wraps autoMate, no OpenClaw). But it's no
+longer the highlighted path.
 
-The gateway is responsible for: sending the reply text back through
-the IM platform, attaching files, handling group vs DM, etc.
-autoMate is responsible for: understanding the message, calling
-tools, producing the answer.
+## Deprecation status of `automate/bots/`
 
-Sessions are keyed `(channel, user_id)` so the agent has memory
-across messages from the same person — without the gateway
-needing to track anything.
-
-## Wiring it up with OpenClaw
-
-1. Install OpenClaw on the same machine as autoMate (or any machine
-   that can reach autoMate over the network):
-   ```bash
-   # follow the official OpenClaw install instructions
-   ```
-2. Install the channel plugin you want. For WeChat, the official
-   Tencent CLI:
-   ```bash
-   npx -y @tencent-weixin/openclaw-weixin-cli@latest install
-   ```
-   Then run the channel login (will print a QR code in your
-   terminal):
-   ```bash
-   openclaw channels login --channel openclaw-weixin
-   ```
-   Scan the QR with the WeChat app to authorize *微信个人助手* to
-   forward messages.
-3. In autoMate, open **Settings → Channels** and copy the **Inbox
-   URL** and **Bearer token**.
-4. In OpenClaw's gateway settings, configure an outbound webhook
-   for the WeChat channel pointing at your autoMate inbox URL,
-   with the Bearer token in the `Authorization` header.
-5. Send a message to *微信个人助手* in WeChat. It should arrive at
-   autoMate, run the agent, and the reply should come back in
-   WeChat.
-
-> The exact OpenClaw configuration steps depend on its current
-> release. The autoMate side stays the same regardless: a single
-> URL + token.
-
-## Other gateways
-
-The same contract works with anything that can POST JSON:
-
-- **n8n / Zapier / Make** — drag a Webhook node, paste the URL and
-  token, set Bearer auth header.
-- **Custom script** (Python / Node) — `requests.post(url, json={...},
-  headers={"Authorization": "Bearer ..."})`.
-- **iOS Shortcuts** — "Get contents of URL" → POST → JSON body.
-- **Telegram bot** (without OpenClaw) — wire a tiny `bot.on('message',
-  ...)` handler that forwards to the inbox URL.
-
-## What the agent sees
-
-The text we send the LLM is wrapped with a small context line:
-
-```
-[message from user 'wxid_abc123' on wechat]
-
-find my Tokyo notes
-```
-
-That tells the LLM (a) it's talking through a chat platform, not the
-SPA, so replies should be terse and non-Markdown-heavy, and (b) which
-user it's talking to, so it can use that as a key for memory tools.
-The system prompt (`automate/agent/prompts.py`) covers the rest.
-
-## What's NOT in v4.5.6
-
-- **Outbound attachments** — text-only replies for now. Files /
-  voice / images come in v4.5.7.
-- **Async mode** — the inbox endpoint blocks until the agent
-  finishes. For long-running tool calls (browser automation) the
-  gateway will see a slow response. v4.5.7 will add a 202-then-
-  callback mode.
-- **Auto-installing OpenClaw from autoMate's UI** — for now you
-  install OpenClaw yourself, then paste the URL+token. v4.5.x may
-  ship a "Channels wizard" that runs the npx commands for you.
-
-## Deprecation note
-
-`automate/bots/` (the old per-platform bot adapters: telegram,
-wechat_oa, wecom, wechat_personal) are **frozen** as of v4.5.6.
-Existing installs keep working. New deployments should use the
-channels bridge above. The old code will be removed in a future
-release once the channels path is proven in the wild.
+The old per-platform bot adapters (`telegram.py`, `wechat_oa.py`,
+`wecom.py`, `wechat_personal.py`) remain frozen. New deployments
+should use OpenClaw + the MCP bridge above. The old code will be
+removed once OpenClaw integration is proven in the wild.

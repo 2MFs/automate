@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "automate-hub"
-version = "4.5.6"
+version = "4.5.7"
 description = "A smart NAS for AI: notes, files, reminders, memory, and 30+ tools. Plug into any LLM via MCP / HTTP / bridge."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,11 +30,14 @@ dependencies = [
     "cryptography>=41.0",
     "python-multipart>=0.0.9",
     "pywebpush>=2.0",
+    # v4.5.7: MCP is now the primary integration path (OpenClaw / Claude
+    # Desktop / Cursor / Cline call autoMate as a tool source over MCP).
+    # Promoted from optional to required so the /mcp endpoint always
+    # works without an extras-install dance.
+    "mcp[cli]>=1.0.0",
 ]
 
 [project.optional-dependencies]
-# Expose autoMate as a stdio MCP server (Claude Desktop / Cursor / Cline / Kimi)
-mcp = ["mcp[cli]>=1.0.0"]
 # Browser execution (Playwright). After install: `python -m playwright install chromium`
 browser = ["playwright>=1.40"]
 # Desktop execution (screenshot / mouse / keyboard). Skip on headless servers.

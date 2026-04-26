@@ -11,8 +11,8 @@ android {
         applicationId "dev.automate.hub"
         minSdk 24                  // Android 7.0+
         targetSdk 34
-        versionCode 16
-        versionName "4.5.6"
+        versionCode 17
+        versionName "4.5.7"
     }
 
     buildTypes {

@@ -330,14 +330,53 @@
           </div>
         </div>
 
-        <!-- v4.5.6: Channels — bridge IM messages into the agent -->
+        <!-- v4.5.7: Connect autoMate to AI clients via MCP / HTTP -->
         <div class="pt-4 border-t">
-          <label class="block text-xs font-medium text-zinc-700 mb-1">Channels (WeChat / Telegram / ...)</label>
+          <label class="block text-xs font-medium text-zinc-700 mb-1">Connect to AI clients</label>
           <p class="text-[11px] text-zinc-500 mb-2 leading-relaxed">
-            Messaging apps connect via an external gateway (we recommend
-            <a href="https://github.com/openclaw/openclaw" target="_blank" class="underline">OpenClaw</a>).
-            Paste these into the gateway so it knows where to deliver
-            messages — autoMate routes them to the agent and replies.
+            Mount autoMate as a tool source inside OpenClaw, Claude Desktop,
+            Cursor, Cline, or any other MCP-aware AI client. Copy the install
+            text below and paste it into the client (or into another AI and
+            ask it to set up for you).
+          </p>
+          <button @click="copyConnectInstructions()"
+                  class="w-full bg-zinc-900 text-white text-sm py-2 rounded-md mb-2">
+            <span x-show="!connectCopied">📋 Copy install text (all clients)</span>
+            <span x-show="connectCopied">✓ Copied!</span>
+          </button>
+          <details class="text-[11px] text-zinc-500">
+            <summary class="cursor-pointer">Show connection details</summary>
+            <div class="mt-2 space-y-2">
+              <div>
+                <div class="text-[10px] text-zinc-500">MCP URL</div>
+                <input :value="connectInfo?.mcp_url || '...'" readonly
+                       class="w-full border rounded-md px-2 py-1.5 font-mono text-[11px] bg-zinc-50" />
+              </div>
+              <div>
+                <div class="text-[10px] text-zinc-500">Bearer token</div>
+                <div class="flex gap-2">
+                  <input :value="connectInfo?.token || '...'" readonly
+                         :type="bridgeTokenShown ? 'text' : 'password'"
+                         class="flex-1 border rounded-md px-2 py-1.5 font-mono text-[11px] bg-zinc-50 min-w-0" />
+                  <button @click="bridgeTokenShown = !bridgeTokenShown"
+                          class="border rounded-md px-2 hover:bg-zinc-50"
+                          x-text="bridgeTokenShown ? 'Hide' : 'Show'"></button>
+                </div>
+              </div>
+              <button @click="regenerateBridgeToken()"
+                      class="text-red-600 hover:underline">
+                Regenerate token (existing clients will stop working)
+              </button>
+            </div>
+          </details>
+        </div>
+
+        <!-- v4.5.6 legacy: kept for non-MCP gateways -->
+        <details class="pt-4 border-t text-xs">
+          <summary class="cursor-pointer text-zinc-500">Inbox URL (for non-MCP gateways)</summary>
+          <p class="text-[11px] text-zinc-500 mt-2 leading-relaxed">
+            For tools that POST JSON instead of speaking MCP (n8n, custom
+            Telegram bots, iOS Shortcuts):
           </p>
           <div class="space-y-2 text-xs">
             <div>
@@ -367,7 +406,7 @@
               </button>
             </div>
           </div>
-        </div>
+        </details>
 
         <!-- v4.5.2: storage location for the file vault -->
         <div class="pt-4 border-t">
