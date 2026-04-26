@@ -127,11 +127,14 @@ jobs:
           path: autoMate-extension.zip
 
   pages:
-    # Publish the SPA (frontend/) to GitHub Pages so the Android TWA APK has
-    # a public HTTPS origin to wrap. Phone PWA installs also benefit.
+    # Publishes the SPA to GitHub Pages so the Android TWA APK has a public
+    # HTTPS origin to wrap. Best-effort: if Pages can't be enabled (org
+    # restrictions, missing permission), the workflow continues and the
+    # release ships without an APK / Pages URL.
     name: Deploy PWA to GitHub Pages
     needs: resolve
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       pages: write
       id-token: write
@@ -145,10 +148,7 @@ jobs:
         run: |
           mkdir -p site/.well-known
           cp -r automate/frontend/* site/
-          # 404 → index.html so SPA routes work
           cp site/index.html site/404.html
-          # Asset links file (TWA will overwrite the SHA256 below in a future
-          # iteration; for now the TWA opens in Chrome Custom Tab fallback).
           cat > site/.well-known/assetlinks.json <<'EOF'
           [{
             "relation": ["delegate_permission/common.handle_all_urls"],
@@ -159,7 +159,10 @@ jobs:
             }
           }]
           EOF
-      - uses: actions/configure-pages@v5
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true        # auto-enable Pages on first run
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./site
@@ -236,20 +239,28 @@ jobs:
 
   release:
     name: Publish Release
-    needs: [resolve, build, extension, wheel, pages, android]
+    # Hard deps: only the things that should always succeed. Pages and
+    # android are best-effort — the release publishes whatever subset of
+    # artifacts exists.
+    needs: [resolve, build, extension, wheel]
+    if: always() && needs.resolve.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        with: { path: artifacts }
+        with:
+          path: artifacts
+          # Allow missing artifacts (no APK, etc.) without failing.
+        continue-on-error: true
       - name: List artifacts
-        run: find artifacts -type f -printf '%p  (%s bytes)\n'
+        run: find artifacts -type f -printf '%p  (%s bytes)\n' || true
       - uses: softprops/action-gh-release@v2
         with:
           name: "autoMate ${{ needs.resolve.outputs.tag }}"
           tag_name: ${{ needs.resolve.outputs.tag }}
+          fail_on_unmatched_files: false
           files: |
             artifacts/autoMate-windows-x64/autoMate-windows-x64.zip
             artifacts/autoMate-macos-arm64/autoMate-macos-arm64.zip
