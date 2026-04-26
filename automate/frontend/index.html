@@ -243,38 +243,14 @@
     </div>
   </div>
 
-  <!-- Local-mode banner — visible only when no hub is connected -->
-  <div x-show="storageMode === 'local'" x-cloak
-       class="bg-amber-50 border-b border-amber-200 px-3 sm:px-4 py-2 text-xs text-amber-900">
-    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-      <div class="leading-snug">
-        <strong>📱 Local mode</strong> — notes &amp; memory on this device.
-        <span class="hidden sm:inline">Tools, files and reminders need a hub on a real computer.</span>
-      </div>
-      <div class="flex gap-2 items-center">
-        <input x-model="hubBaseInput" placeholder="http://laptop-ip:8765"
-               class="flex-1 sm:flex-none border rounded px-2 py-1 text-[11px] font-mono sm:w-44 min-w-0" />
-        <button @click="syncWithHub()" :disabled="syncing"
-                class="bg-zinc-900 text-white text-[11px] px-3 py-1 rounded whitespace-nowrap">
-          <span x-show="!syncing">Sync</span>
-          <span x-show="syncing">…</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Top bar -->
+  <!-- Top bar — clear identity: "autoMate · A NAS for any AI" -->
   <header class="border-b bg-white sticky top-0 z-10">
     <div class="max-w-6xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
       <div class="flex items-center gap-3 min-w-0">
         <div class="w-8 h-8 rounded-lg bg-zinc-900 text-white grid place-items-center font-bold text-sm flex-shrink-0">a</div>
         <div class="min-w-0">
-          <div class="font-semibold text-sm truncate" x-text="tabs.find(t => t.id === active)?.label || 'autoMate'"></div>
-          <div class="text-[10px] text-zinc-500 truncate">
-            <span x-text="status?.version ? `v${status.version}` : 'autoMate'"></span>
-            <span x-show="storageMode === 'local'" class="text-amber-600 ml-1">· local</span>
-            <span x-show="storageMode === 'connected'" class="text-emerald-600 ml-1">· connected</span>
-          </div>
+          <div class="font-semibold text-sm truncate">autoMate</div>
+          <div class="text-[10px] text-zinc-500 truncate">A NAS for any AI</div>
         </div>
       </div>
 
@@ -287,24 +263,158 @@
         </template>
       </nav>
 
-      <div class="text-xs text-zinc-500 flex items-center gap-2 sm:gap-3 flex-shrink-0">
-        <span class="flex items-center gap-1" :title="status?.extension_connected ? 'Extension connected' : 'Extension not connected'">
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <span class="hidden sm:flex items-center gap-1 text-xs text-zinc-500" :title="status?.extension_connected ? 'Extension connected' : 'Extension not connected'">
           <span class="w-1.5 h-1.5 rounded-full" :class="status?.extension_connected ? 'bg-emerald-500' : 'bg-zinc-300'"></span>
-          <span class="hidden sm:inline text-[11px]">ext</span>
+          <span class="text-[11px]">ext</span>
         </span>
-        <span x-show="status?.active_provider" class="hidden sm:flex items-center gap-1">
-          <span class="text-zinc-400">model:</span>
-          <span class="font-medium text-zinc-700 truncate max-w-[10rem]" x-text="`${status.active_provider}`"></span>
-        </span>
-        <span x-show="!status?.active_provider" class="text-amber-600 text-[11px]">
-          <span class="sm:hidden">⚠</span>
-          <span class="hidden sm:inline">⚠ no model</span>
-        </span>
+        <button @click="settingsOpen = true"
+                class="w-9 h-9 grid place-items-center rounded-full hover:bg-zinc-100 text-zinc-600 text-lg"
+                aria-label="Settings">⚙</button>
       </div>
     </div>
   </header>
 
+  <!-- Settings bottom-sheet (hub URL, sync, version info live here now) -->
+  <div x-show="settingsOpen" x-cloak x-transition.opacity
+       class="fixed inset-0 bg-black/40 z-40" @click.self="settingsOpen = false">
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl p-5 pb-8 max-h-[85vh] overflow-y-auto"
+         style="padding-bottom: calc(2rem + env(safe-area-inset-bottom))">
+      <div class="w-10 h-1 bg-zinc-200 rounded-full mx-auto mb-4"></div>
+      <h2 class="text-lg font-semibold mb-1">Settings</h2>
+      <div class="text-xs text-zinc-500 mb-4">
+        <span x-text="status?.version ? `autoMate v${status.version}` : 'autoMate'"></span>
+        <span x-show="storageMode === 'local'" class="text-amber-600 ml-1">· local mode</span>
+        <span x-show="storageMode === 'connected'" class="text-emerald-600 ml-1">· connected</span>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-zinc-700 mb-1">Hub URL</label>
+          <p class="text-xs text-zinc-500 mb-2 leading-relaxed">
+            By default this app stores notes locally. To get the full warehouse
+            (files, tools, reminders that push you), point it at a hub running
+            on your laptop / NAS / Docker.
+          </p>
+          <div class="flex gap-2">
+            <input x-model="hubBaseInput" placeholder="http://192.168.1.20:8765"
+                   class="flex-1 border rounded-md px-3 py-2 text-sm font-mono min-w-0" />
+            <button @click="syncWithHub()" :disabled="syncing"
+                    class="bg-zinc-900 text-white text-sm px-4 py-2 rounded-md whitespace-nowrap">
+              <span x-show="!syncing">Sync</span>
+              <span x-show="syncing">…</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t">
+          <button @click="settingsOpen = false; active = 'help'"
+                  class="text-sm text-blue-600 underline">Open Help &amp; documentation</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <main class="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 pb-24 md:pb-8">
+
+    <!-- ============ HOME (mobile-first landing) ============ -->
+    <section x-show="active === 'home'" class="space-y-5">
+
+      <!-- Hero — what is this thing -->
+      <div class="bg-gradient-to-br from-zinc-900 to-zinc-700 text-white rounded-2xl p-5 sm:p-6">
+        <div class="text-2xl sm:text-3xl font-bold mb-1">📦 autoMate</div>
+        <div class="text-base sm:text-lg font-medium mb-2 opacity-90">A NAS for any AI.</div>
+        <p class="text-zinc-300 text-xs sm:text-sm leading-relaxed">
+          Your warehouse: notes, files, reminders, tools. Whatever AI you use
+          (Kimi · Claude · GPT · Ollama) plugs in via one snippet.
+        </p>
+      </div>
+
+      <!-- Plug into your AI — leads to the Connect tab -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs uppercase tracking-wider text-zinc-500">Plug your AI in</div>
+          <button @click="active = 'connect'" class="text-xs text-blue-600 hover:underline">See all →</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <template x-for="c in aiClients.slice(0, 4)" :key="c.id">
+            <button @click="pickAiClient(c.id); active = 'connect'"
+                    class="bg-white border rounded-lg p-3 text-left hover:border-zinc-400 transition">
+              <div class="text-xl" x-text="c.icon"></div>
+              <div class="text-sm font-medium leading-tight mt-1" x-text="c.label"></div>
+              <div class="text-[10px] text-zinc-400 uppercase mt-0.5" x-text="c.mode"></div>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Quick actions -->
+      <div>
+        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">Quick actions</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button @click="active = 'notes'; newNote()"
+                  class="bg-white border rounded-lg p-4 text-left hover:border-zinc-400">
+            <div class="text-2xl">📒</div>
+            <div class="text-sm font-medium mt-1">New note</div>
+            <div class="text-[11px] text-zinc-500">Capture a thought</div>
+          </button>
+          <label class="bg-white border rounded-lg p-4 cursor-pointer hover:border-zinc-400 block">
+            <div class="text-2xl">📁</div>
+            <div class="text-sm font-medium mt-1">Upload file</div>
+            <div class="text-[11px] text-zinc-500" x-text="storageMode === 'connected' ? 'Goes to your hub' : 'Needs a hub'"></div>
+            <input type="file" multiple class="hidden"
+                   :disabled="storageMode !== 'connected'"
+                   @change="storageMode === 'connected' ? (uploadFiles($event), active = 'files') : settingsOpen = true" />
+          </label>
+          <button @click="active = 'reminders'"
+                  class="bg-white border rounded-lg p-4 text-left hover:border-zinc-400">
+            <div class="text-2xl">⏰</div>
+            <div class="text-sm font-medium mt-1">Set reminder</div>
+            <div class="text-[11px] text-zinc-500">Push to your phone</div>
+          </button>
+          <button @click="active = 'connect'"
+                  class="bg-white border rounded-lg p-4 text-left hover:border-zinc-400">
+            <div class="text-2xl">🔌</div>
+            <div class="text-sm font-medium mt-1">Get AI snippet</div>
+            <div class="text-[11px] text-zinc-500">Wire into your AI</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Your stuff — at-a-glance counts + recent -->
+      <div>
+        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">Your warehouse</div>
+        <div class="bg-white border rounded-lg p-4 space-y-3">
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <button @click="active = 'notes'" class="hover:bg-zinc-50 rounded p-2">
+              <div class="text-2xl font-semibold" x-text="notes.length"></div>
+              <div class="text-[10px] uppercase tracking-wider text-zinc-500">Notes</div>
+            </button>
+            <button @click="active = 'files'" class="hover:bg-zinc-50 rounded p-2">
+              <div class="text-2xl font-semibold" x-text="files.length || filesUsage?.count || 0"></div>
+              <div class="text-[10px] uppercase tracking-wider text-zinc-500">Files</div>
+            </button>
+            <button @click="active = 'reminders'" class="hover:bg-zinc-50 rounded p-2">
+              <div class="text-2xl font-semibold" x-text="reminders.filter(r => r.status === 'pending').length"></div>
+              <div class="text-[10px] uppercase tracking-wider text-zinc-500">Pending</div>
+            </button>
+          </div>
+          <div x-show="notes.length" class="text-xs text-zinc-500 pt-3 border-t">
+            <span class="font-medium text-zinc-700">Last note:</span>
+            <span x-text="notes[0]?.title"></span>
+            <span class="text-zinc-400" x-text="notes[0] ? ' · ' + new Date(notes[0].updated_at * 1000).toLocaleString() : ''"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode hint — small and contextual, no scary banner -->
+      <div x-show="storageMode === 'local'" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+        <strong>Local-only.</strong> Notes &amp; memory live on this device. Files,
+        reminders and tools work once you connect to a hub.
+        <button @click="settingsOpen = true" class="underline ml-1">Connect hub →</button>
+      </div>
+
+    </section>
 
     <!-- ============ MODELS ============ -->
     <section x-show="active === 'models'">
@@ -838,60 +948,81 @@
       </aside>
     </section>
 
-    <!-- ============ CONNECT ANY AI ============ -->
+    <!-- ============ CONNECT ANY AI (default landing on phone) ============ -->
     <section x-show="active === 'connect'">
-      <div x-show="storageMode === 'local'" class="bg-white border rounded-xl p-12 text-center">
-        <div class="text-3xl mb-2">🔌</div>
-        <h2 class="font-semibold mb-1">Connect snippets need a hub</h2>
-        <p class="text-sm text-zinc-500 max-w-md mx-auto mb-4">
-          The whole point of "Connect AI" is wiring an upstream LLM to your
-          hub's tool catalog. Your hub is the warehouse — without one running,
-          there's nothing for snippets to point at.
-        </p>
-      </div>
-      <div x-show="storageMode === 'connected'" class="mb-6">
-        <h1 class="text-2xl font-semibold">Use autoMate from any AI</h1>
-        <p class="text-sm text-zinc-500 mt-2 leading-relaxed max-w-2xl">
-          autoMate isn't only for the chat in this window. The same tools are
-          exposed in four ways so any LLM — Claude Code, Kimi, ChatGPT, a local
-          Ollama, even a basic web chat — can drive your machine through them.
-          Pick the snippet that matches what you're using and copy-paste.
+
+      <!-- Hero — makes it obvious autoMate is INFRASTRUCTURE for an AI, not a chat -->
+      <div class="bg-gradient-to-br from-zinc-900 to-zinc-700 text-white rounded-xl p-5 sm:p-6 mb-4">
+        <div class="text-xl sm:text-2xl font-bold mb-1">Plug autoMate into your AI</div>
+        <p class="text-zinc-300 text-xs sm:text-sm leading-relaxed">
+          Pick the AI you already use. Copy the snippet. Paste it once.
+          From then on, your AI can read your notes, drop files, set
+          reminders, and run real tools — all on your machine.
         </p>
       </div>
 
-      <div class="space-y-4">
-        <template x-for="key in ['mcp', 'http', 'bridge', 'discover']" :key="key">
-          <div class="bg-white border rounded-xl overflow-hidden" x-show="connectInfo?.modes?.[key]">
-            <div class="p-5 border-b bg-zinc-50">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <h2 class="font-semibold text-base" x-text="connectInfo?.modes?.[key]?.title"></h2>
-                  <p class="text-xs text-zinc-500 mt-1 leading-relaxed" x-text="connectInfo?.modes?.[key]?.subtitle"></p>
-                </div>
-                <button @click="copySnippet(key, connectInfo?.modes?.[key]?.content + (connectInfo?.modes?.[key]?.prompt ? '\n\n' + connectInfo.modes[key].prompt : ''))"
-                        class="bg-zinc-900 text-white text-xs px-3 py-1.5 rounded-md flex-shrink-0">
-                  <span x-show="copiedKey !== key">Copy</span>
-                  <span x-show="copiedKey === key">✓ Copied</span>
-                </button>
-              </div>
-              <p class="text-xs text-zinc-600 mt-3" x-text="connectInfo?.modes?.[key]?.instructions"></p>
-            </div>
-            <pre class="bg-zinc-900 text-zinc-100 text-xs p-4 overflow-x-auto" x-text="connectInfo?.modes?.[key]?.content"></pre>
-            <pre x-show="connectInfo?.modes?.[key]?.prompt"
-                 class="bg-zinc-800 text-zinc-100 text-xs p-4 overflow-x-auto border-t border-zinc-700"
-                 x-text="connectInfo?.modes?.[key]?.prompt"></pre>
-          </div>
-        </template>
-
-        <div class="text-xs text-zinc-500 leading-relaxed bg-zinc-50 border rounded-lg p-4">
-          <div class="font-semibold text-zinc-700 mb-1">A note on security</div>
-          autoMate binds to <code class="bg-white border px-1 rounded">127.0.0.1</code>
-          — only processes on this machine can reach the snippets above.
-          They do <em>not</em> work from another computer until you bind the
-          server to a public address (advanced users only — set
-          <code class="bg-white border px-1 rounded">AUTOMATE_HOST=0.0.0.0</code>).
+      <!-- "I'm using ___" picker -->
+      <div class="mb-4">
+        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">I'm using…</div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <template x-for="c in aiClients" :key="c.id">
+            <button @click="pickAiClient(c.id)"
+                    :class="aiClient === c.id ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white hover:border-zinc-400'"
+                    class="border-2 rounded-lg p-3 text-left transition">
+              <div class="text-lg" x-text="c.icon"></div>
+              <div class="text-xs sm:text-sm font-medium leading-tight mt-1" x-text="c.label"></div>
+              <div class="text-[10px] mt-0.5 opacity-70 uppercase" x-text="c.mode"></div>
+            </button>
+          </template>
         </div>
       </div>
+
+      <!-- The selected snippet, large and copy-friendly -->
+      <div x-show="connectInfo?.modes?.[aiClientMode]"
+           class="bg-white border-2 border-zinc-900 rounded-xl overflow-hidden mb-4">
+        <div class="p-4 bg-zinc-50 border-b">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div class="min-w-0">
+              <h2 class="font-semibold text-sm sm:text-base" x-text="connectInfo?.modes?.[aiClientMode]?.title"></h2>
+              <p class="text-[11px] sm:text-xs text-zinc-500 mt-0.5 leading-snug" x-text="connectInfo?.modes?.[aiClientMode]?.subtitle"></p>
+            </div>
+          </div>
+          <button @click="copySnippet(aiClientMode, connectInfo?.modes?.[aiClientMode]?.content + (connectInfo?.modes?.[aiClientMode]?.prompt ? '\n\n' + connectInfo.modes[aiClientMode].prompt : ''))"
+                  class="w-full bg-zinc-900 text-white text-sm py-3 rounded-lg font-medium">
+            <span x-show="copiedKey !== aiClientMode">📋 Copy snippet</span>
+            <span x-show="copiedKey === aiClientMode">✓ Copied — paste it into your AI</span>
+          </button>
+          <p class="text-[11px] sm:text-xs text-zinc-600 mt-3 leading-relaxed" x-text="connectInfo?.modes?.[aiClientMode]?.instructions"></p>
+        </div>
+        <details class="border-t">
+          <summary class="px-4 py-2 text-xs text-zinc-500 cursor-pointer hover:bg-zinc-50">View snippet</summary>
+          <pre class="bg-zinc-900 text-zinc-100 text-[11px] sm:text-xs p-3 overflow-x-auto" x-text="connectInfo?.modes?.[aiClientMode]?.content"></pre>
+          <pre x-show="connectInfo?.modes?.[aiClientMode]?.prompt"
+               class="bg-zinc-800 text-zinc-100 text-[11px] sm:text-xs p-3 overflow-x-auto border-t border-zinc-700"
+               x-text="connectInfo?.modes?.[aiClientMode]?.prompt"></pre>
+        </details>
+      </div>
+
+      <!-- Status hint when local-only -->
+      <div x-show="storageMode === 'local'" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs sm:text-sm text-amber-900">
+        <div class="font-semibold mb-1">⚠ Hub not connected</div>
+        Snippets above point at <code class="bg-white px-1 rounded text-[11px]" x-text="connectInfo?.base_url || '(no hub)'"></code>.
+        Without a hub, the AI has nothing to call. Run autoMate on a real
+        computer (laptop / NAS / Docker), then come back and tap the
+        yellow banner to connect.
+      </div>
+
+      <!-- Security note (collapsed on mobile to save space) -->
+      <details class="text-xs text-zinc-500 leading-relaxed mt-4">
+        <summary class="cursor-pointer hover:text-zinc-700">Privacy &amp; security note</summary>
+        <div class="mt-2 bg-zinc-50 border rounded-lg p-3">
+          autoMate binds to <code class="bg-white border px-1 rounded">127.0.0.1</code>
+          — only processes on this machine can reach the snippets above. They
+          don't work from another device until you bind the server to a public
+          address (<code class="bg-white border px-1 rounded">AUTOMATE_HOST=0.0.0.0</code>)
+          or use the relay. See docs/relay.md.
+        </div>
+      </details>
     </section>
 
     <!-- ============ HISTORY ============ -->

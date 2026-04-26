@@ -1,6 +1,7 @@
 document.addEventListener("alpine:init", () => {
   Alpine.data("app", () => ({
     tabs: [
+      { id: "home",         label: "Home" },
       { id: "notes",        label: "Notes" },
       { id: "files",        label: "Files" },
       { id: "reminders",    label: "Reminders" },
@@ -9,20 +10,40 @@ document.addEventListener("alpine:init", () => {
       { id: "models",       label: "Models" },
       { id: "help",         label: "Help" },
     ],
-    // Mobile gets a 4-icon bottom bar plus a "More" sheet for the rest.
+    // Mobile bottom-nav: 4 most-used + More.
     mobileTabs: [
+      { id: "home",      label: "Home",      icon: "🏠" },
       { id: "notes",     label: "Notes",     icon: "📒" },
-      { id: "reminders", label: "Reminders", icon: "⏰" },
       { id: "files",     label: "Files",     icon: "📁" },
-      { id: "connect",   label: "Connect",   icon: "🔌" },
+      { id: "reminders", label: "Reminders", icon: "⏰" },
     ],
     moreTabs: [
-      { id: "integrations", label: "Tools",  icon: "🧰" },
-      { id: "models",       label: "Models", icon: "🧠" },
-      { id: "help",         label: "Help",   icon: "?" },
+      { id: "connect",      label: "Connect AI", icon: "🔌" },
+      { id: "integrations", label: "Tools",      icon: "🧰" },
+      { id: "models",       label: "Models",     icon: "🧠" },
+      { id: "help",         label: "Help",       icon: "?" },
     ],
     moreOpen: false,
-    active: "notes",
+    settingsOpen: false,
+
+    // Quick "I'm using…" picker on the Connect tab.
+    aiClient: localStorage.getItem("automate-ai-client") || "claude_code",
+    aiClients: [
+      { id: "claude_code", label: "Claude Code",            mode: "mcp",   icon: "🧰" },
+      { id: "cursor",      label: "Cursor / Cline",         mode: "mcp",   icon: "🧰" },
+      { id: "kimi_k2",     label: "Kimi K2 / Kimi Code",    mode: "mcp",   icon: "🧰" },
+      { id: "chatgpt",     label: "ChatGPT custom GPTs",    mode: "http",  icon: "🌐" },
+      { id: "ollama",      label: "Ollama / web chat",      mode: "bridge",icon: "🐚" },
+      { id: "other",       label: "Something else",         mode: "discover", icon: "📡" },
+    ],
+    pickAiClient(id) {
+      this.aiClient = id;
+      localStorage.setItem("automate-ai-client", id);
+    },
+    get aiClientMode() {
+      return this.aiClients.find(c => c.id === this.aiClient)?.mode || "mcp";
+    },
+    active: localStorage.getItem("automate-active-tab") || "home",
     region: "",
     status: null,
     welcomeOpen: false,
@@ -32,13 +53,14 @@ document.addEventListener("alpine:init", () => {
 
     // Curated 'popular' providers — shown first in the wizard. Order = ranking.
     wizardPicks: [
-      { id: "anthropic", title: "Anthropic Claude", subtitle: "Best for coding & agents",       hint: "Sign in with email, no payment needed for API trial credit." },
-      { id: "openai",    title: "OpenAI",           subtitle: "GPT-4o · widely supported",       hint: "Pay-per-use, no subscription." },
-      { id: "kimi",      title: "Moonshot Kimi",    subtitle: "国内可直接访问",                  hint: "moonshot.cn account → 用户中心 → API Keys。" },
-      { id: "deepseek",  title: "DeepSeek",         subtitle: "便宜 + 国内访问",                 hint: "platform.deepseek.com → API keys → 充几块钱就够测试。" },
-      { id: "qwen",      title: "通义千问",          subtitle: "阿里 DashScope",                  hint: "需要阿里云账号,有免费额度。" },
-      { id: "zhipu",     title: "智谱 GLM",          subtitle: "glm-4-flash 永久免费",            hint: "open.bigmodel.cn → 用户中心 → API Keys。" },
-      { id: "ollama",    title: "Ollama (local)",   subtitle: "完全离线 · 不要 API key",         hint: "先 ollama.com 装上,然后跑 `ollama serve` + `ollama pull qwen2.5-coder`。" },
+      { id: "anthropic", title: "Anthropic Claude",          subtitle: "Best for coding & agents",        hint: "Sign in with email, no payment needed for API trial credit." },
+      { id: "openai",    title: "OpenAI",                    subtitle: "GPT-4o · widely supported",        hint: "Pay-per-use, no subscription." },
+      { id: "kimi",      title: "Moonshot Kimi (web API)",   subtitle: "OpenAI 协议 · 国内直连",          hint: "moonshot.cn 工作台 → 用户中心 → API Keys。" },
+      { id: "kimi_code", title: "Kimi Code (Anthropic API)", subtitle: "若你在用 Kimi for Coding CLI",     hint: "同一个 Moonshot key,但走 Anthropic 兼容端点。" },
+      { id: "deepseek",  title: "DeepSeek",                  subtitle: "便宜 + 国内访问",                 hint: "platform.deepseek.com → API keys → 充几块钱就够测试。" },
+      { id: "qwen",      title: "通义千问",                   subtitle: "阿里 DashScope",                  hint: "需要阿里云账号,有免费额度。" },
+      { id: "zhipu",     title: "智谱 GLM",                   subtitle: "glm-4-flash 永久免费",            hint: "open.bigmodel.cn → 用户中心 → API Keys。" },
+      { id: "ollama",    title: "Ollama (local)",            subtitle: "完全离线 · 不要 API key",         hint: "先 ollama.com 装上,然后跑 `ollama serve` + `ollama pull qwen2.5-coder`。" },
     ],
     catalog: [],
     catalogById: {},
@@ -181,6 +203,9 @@ document.addEventListener("alpine:init", () => {
     ],
 
     async init() {
+      // Persist active tab so re-opening the APK lands where you left off.
+      this.$watch?.("active", v => v && localStorage.setItem("automate-active-tab", v));
+
       // First, try to talk to a hub. If it works, we're in connected mode.
       // If not, we drop to local mode and the SPA serves notes/memory from
       // IndexedDB. The user can flip to connected mode any time.

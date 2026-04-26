@@ -1,5 +1,39 @@
-/* Small touches on top of Tailwind. */
-html { scroll-behavior: smooth; }
-input:focus, button:focus, select:focus { outline: 2px solid #18181b; outline-offset: 1px; }
-pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+/* Mobile-first base styles on top of Tailwind. */
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;   /* don't auto-zoom text on iOS rotation */
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  /* Prevent the dreaded iOS Safari rubber-band background flash. */
+  overscroll-behavior-y: contain;
+}
+
+input, textarea, select, button {
+  font: inherit;
+}
+
+/* Avoid iOS zooming-in when an input gets focus (kicks in below 16px font). */
+input:not([type=range]),
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
+
+input:focus, button:focus, select:focus, textarea:focus {
+  outline: 2px solid #18181b;
+  outline-offset: 1px;
+}
+
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 [x-cloak] { display: none !important; }
+
+/* Fix Alpine flicker: hide x-show'd elements until Alpine evaluates them. */
+[x-show], [x-cloak] { transition: opacity .15s ease; }
