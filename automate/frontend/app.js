@@ -1,14 +1,15 @@
 document.addEventListener("alpine:init", () => {
   Alpine.data("app", () => ({
     tabs: [
-      { id: "chat",         label: "Chat" },
-      { id: "models",       label: "Models" },
-      { id: "integrations", label: "Tools" },
+      { id: "notes",        label: "Notes" },
+      { id: "files",        label: "Files" },
+      { id: "reminders",    label: "Reminders" },
       { id: "connect",      label: "Connect AI" },
-      { id: "history",      label: "History" },
+      { id: "integrations", label: "Tools" },
+      { id: "models",       label: "Models" },
       { id: "help",         label: "Help" },
     ],
-    active: "chat",
+    active: "notes",
     region: "",
     status: null,
     welcomeOpen: false,
@@ -53,6 +54,26 @@ document.addEventListener("alpine:init", () => {
     connectInfo: null,
     copiedKey: null,
     hubBaseInput: "",
+
+    // ---- v5: notes ----
+    notes: [],
+    notesQuery: "",
+    notesTag: "",
+    activeNote: null,
+    noteDraft: { title: "", body: "", tags: "", pinned: false },
+
+    // ---- v5: files ----
+    files: [],
+    filesUsage: { total_bytes: 0, count: 0 },
+    fileUploading: false,
+
+    // ---- v5: reminders ----
+    reminders: [],
+    reminderDraft: { body: "", when: "", recurrence: "" },
+
+    // ---- v5: push subscription state ----
+    pushEnabled: false,
+    pushBusy: false,
 
     saveHubBase() {
       const v = (this.hubBaseInput || "").trim().replace(/\/$/, "");
@@ -195,7 +216,147 @@ document.addEventListener("alpine:init", () => {
         this.loadTools(),
         this.loadRuns(),
         this.loadConnectInfo(),
+        this.loadNotes(),
+        this.loadFiles(),
+        this.loadReminders(),
       ]);
+      this.checkPushEnabled();
+    },
+
+    // ---- v5: notes ----
+    async loadNotes() {
+      this.notes = await api(`/api/notes?query=${encodeURIComponent(this.notesQuery)}&tag=${encodeURIComponent(this.notesTag)}`);
+    },
+    newNote() {
+      this.activeNote = { id: null };
+      this.noteDraft = { title: "", body: "", tags: "", pinned: false };
+    },
+    openNote(n) {
+      this.activeNote = n;
+      this.noteDraft = { title: n.title, body: n.body, tags: n.tags, pinned: !!n.pinned };
+    },
+    async saveNote() {
+      if (this.activeNote?.id) {
+        const updated = await api(`/api/notes/${this.activeNote.id}`, "PATCH", this.noteDraft);
+        this.activeNote = updated;
+      } else {
+        const created = await api("/api/notes", "POST", this.noteDraft);
+        this.activeNote = created;
+      }
+      await this.loadNotes();
+    },
+    async deleteNote() {
+      if (!this.activeNote?.id) return;
+      if (!confirm("Delete this note?")) return;
+      await api(`/api/notes/${this.activeNote.id}`, "DELETE");
+      this.activeNote = null;
+      this.noteDraft = { title: "", body: "", tags: "", pinned: false };
+      await this.loadNotes();
+    },
+
+    // ---- v5: files ----
+    async loadFiles() {
+      this.files = await api("/api/files");
+      this.filesUsage = await api("/api/files/usage");
+    },
+    async uploadFiles(ev) {
+      const fileList = Array.from(ev.target.files || []);
+      if (!fileList.length) return;
+      this.fileUploading = true;
+      try {
+        for (const f of fileList) {
+          const fd = new FormData();
+          fd.append("file", f);
+          await fetch(hubBase() + "/api/files", { method: "POST", body: fd });
+        }
+        await this.loadFiles();
+      } finally {
+        this.fileUploading = false;
+        ev.target.value = "";
+      }
+    },
+    async deleteFile(id) {
+      if (!confirm("Delete this file?")) return;
+      await api(`/api/files/${id}`, "DELETE");
+      await this.loadFiles();
+    },
+    fileDownloadUrl(f) {
+      return `${hubBase()}/api/files/${f.id}/raw`;
+    },
+    fmtBytes(n) {
+      if (!n) return "0 B";
+      const u = ["B", "KB", "MB", "GB", "TB"];
+      let i = 0;
+      while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+      return `${n.toFixed(i ? 1 : 0)} ${u[i]}`;
+    },
+
+    // ---- v5: reminders ----
+    async loadReminders() {
+      this.reminders = await api("/api/reminders");
+    },
+    async createReminder() {
+      if (!this.reminderDraft.body || !this.reminderDraft.when) return;
+      const due = new Date(this.reminderDraft.when).getTime() / 1000;
+      await api("/api/reminders", "POST", {
+        body: this.reminderDraft.body,
+        due_at: due,
+        recurrence: this.reminderDraft.recurrence || null,
+      });
+      this.reminderDraft = { body: "", when: "", recurrence: "" };
+      await this.loadReminders();
+    },
+    async snoozeReminder(id, minutes = 10) {
+      await api(`/api/reminders/${id}/snooze?minutes=${minutes}`, "POST");
+      await this.loadReminders();
+    },
+    async dismissReminder(id) {
+      await api(`/api/reminders/${id}/dismiss`, "POST");
+      await this.loadReminders();
+    },
+    async deleteReminder(id) {
+      await api(`/api/reminders/${id}`, "DELETE");
+      await this.loadReminders();
+    },
+    fmtTime(ts) { return new Date(ts * 1000).toLocaleString(); },
+
+    // ---- v5: web push subscription ----
+    async checkPushEnabled() {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        this.pushEnabled = !!sub;
+      } catch {}
+    },
+    async enablePush() {
+      this.pushBusy = true;
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") { alert("Notifications denied."); return; }
+        const reg = await navigator.serviceWorker.ready;
+        const cfg = await api("/api/push/config");
+        const key = urlBase64ToUint8Array(cfg.vapid_public_key);
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: key,
+        });
+        const json = sub.toJSON();
+        await api("/api/push/subscribe", "POST", {
+          endpoint: json.endpoint,
+          p256dh: json.keys.p256dh,
+          auth: json.keys.auth,
+        });
+        this.pushEnabled = true;
+      } catch (e) {
+        alert("Push setup failed: " + e.message);
+      } finally {
+        this.pushBusy = false;
+      }
+    },
+    async testPush() {
+      const r = await api("/api/push/test", "POST");
+      alert(`sent=${r.sent}, failed=${r.failed}` + (r.reason ? `\n${r.reason}` : ""));
     },
 
     async refreshStatus() { this.status = await api("/api/status"); },
@@ -425,6 +586,15 @@ function wsUrlFor(path) {
     return `${u.protocol === "https:" ? "wss" : "ws"}://${u.host}${path}`;
   }
   return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${path}`;
+}
+
+function urlBase64ToUint8Array(base64) {
+  const padding = "=".repeat((4 - base64.length % 4) % 4);
+  const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
 }
 
 async function api(path, method = "GET", body) {

@@ -28,49 +28,49 @@
        class="fixed inset-0 bg-black/50 grid place-items-center z-30 p-4">
     <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden">
       <div class="bg-gradient-to-br from-zinc-900 to-zinc-700 text-white p-8">
-        <div class="text-3xl font-bold mb-2">Welcome to autoMate</div>
+        <div class="text-3xl font-bold mb-2">Your AI's brain.</div>
         <p class="text-zinc-300 text-sm leading-relaxed mb-3">
-          autoMate is a scheduling hub that gives any LLM hands. It lives on
-          your machine and lets a chat assistant run real commands, drive your
-          browser, and call your SaaS accounts.
+          autoMate is the personal-infrastructure layer behind whichever AI
+          you already use. Notes, files, reminders, and 30+ tools — all
+          living on your machine, all callable from Kimi / Claude / GPT /
+          Ollama via one snippet.
         </p>
         <p class="text-zinc-400 text-xs leading-relaxed">
-          Use the chat in this window — or wire autoMate into Claude Code,
-          Kimi, ChatGPT, even a local Ollama. One hub, any AI.
+          Don't switch chat apps. Switch what's behind them.
         </p>
       </div>
 
       <div class="p-8 space-y-5">
-        <div class="text-xs uppercase tracking-wider text-zinc-500">Three steps to get going</div>
+        <div class="text-xs uppercase tracking-wider text-zinc-500">Three things autoMate gives you</div>
 
         <ol class="space-y-4">
           <li class="flex gap-4">
             <div class="w-8 h-8 rounded-full bg-zinc-900 text-white grid place-items-center font-bold flex-shrink-0">1</div>
             <div>
-              <div class="font-semibold text-sm">Configure a model</div>
+              <div class="font-semibold text-sm">A brain that any AI can call</div>
               <div class="text-xs text-zinc-500 mt-0.5">
-                Pick any LLM provider — OpenAI, Claude, Kimi, DeepSeek, 通义,
-                Ollama (local), and 20 more. Paste an API key, click "Use this".
+                Wire Kimi / Claude / GPT / Ollama into autoMate via MCP, HTTP,
+                or a one-line bridge. One snippet, copy &amp; paste.
               </div>
             </div>
           </li>
           <li class="flex gap-4">
             <div class="w-8 h-8 rounded-full bg-zinc-200 text-zinc-700 grid place-items-center font-bold flex-shrink-0">2</div>
             <div>
-              <div class="font-semibold text-sm">(Optional) Connect tools</div>
+              <div class="font-semibold text-sm">Notes, files, reminders that survive every session</div>
               <div class="text-xs text-zinc-500 mt-0.5">
-                Notion, GitHub, Slack, 飞书 and 27 more. OAuth where supported,
-                API key elsewhere. Encrypted on disk.
+                Your AI writes notes, drops files, and sets reminders for you —
+                all stored locally, encrypted, accessible from any AI you use tomorrow.
               </div>
             </div>
           </li>
           <li class="flex gap-4">
             <div class="w-8 h-8 rounded-full bg-zinc-200 text-zinc-700 grid place-items-center font-bold flex-shrink-0">3</div>
             <div>
-              <div class="font-semibold text-sm">Chat</div>
+              <div class="font-semibold text-sm">Real hands on your machine</div>
               <div class="text-xs text-zinc-500 mt-0.5">
-                Type anything. autoMate plans, picks the right tool, and runs
-                it. Live event stream shows every step.
+                Shell, scripts, browser automation, 31 SaaS integrations.
+                Whatever the AI plans, autoMate executes — locally, with your privileges.
               </div>
             </div>
           </li>
@@ -90,7 +90,11 @@
           <div class="flex gap-2">
             <button @click="dismissWelcome(false)"
                     class="text-xs border rounded-md px-3 py-2 hover:bg-zinc-50">
-              I'll explore on my own
+              Skip
+            </button>
+            <button @click="dismissWelcome(false); active='connect'"
+                    class="text-xs border rounded-md px-3 py-2 hover:bg-zinc-50">
+              Just give me the snippet
             </button>
             <button @click="dismissWelcome(true)"
                     class="text-xs bg-zinc-900 text-white rounded-md px-4 py-2">
@@ -506,7 +510,172 @@
       </div>
     </section>
 
-    <!-- ============ CHAT ============ -->
+    <!-- ============ NOTES ============ -->
+    <section x-show="active === 'notes'">
+      <div class="mb-5 flex items-end justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Notes</h1>
+          <p class="text-sm text-zinc-500 mt-1">Your memory across every AI you use. Markdown bodies, tags, search.</p>
+        </div>
+        <button @click="newNote()" class="bg-zinc-900 text-white text-sm px-3 py-1.5 rounded-md">+ New note</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <aside class="bg-white border rounded-xl p-3 max-h-[70vh] overflow-y-auto">
+          <input x-model="notesQuery" @input.debounce.300ms="loadNotes()"
+                 placeholder="Search…" class="w-full border rounded-md px-2 py-1.5 text-sm mb-2" />
+          <div x-show="!notes.length" class="text-xs text-zinc-400 py-8 text-center">
+            No notes yet. Click "+ New note" or ask any AI to call <code>notes.create</code>.
+          </div>
+          <template x-for="n in notes" :key="n.id">
+            <button @click="openNote(n)"
+                    :class="activeNote?.id === n.id ? 'bg-zinc-100' : 'hover:bg-zinc-50'"
+                    class="w-full text-left p-2 rounded-md mb-1">
+              <div class="font-medium text-sm flex items-center gap-1.5">
+                <span x-show="n.pinned" class="text-amber-500">★</span>
+                <span class="truncate" x-text="n.title"></span>
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5 truncate" x-text="n.body.slice(0,80)"></div>
+              <div class="text-[10px] text-zinc-400 mt-0.5" x-show="n.tags" x-text="n.tags"></div>
+            </button>
+          </template>
+        </aside>
+        <main class="md:col-span-2 bg-white border rounded-xl p-4">
+          <div x-show="!activeNote" class="text-center text-zinc-400 text-sm py-16">
+            Pick a note on the left, or click <strong>+ New note</strong>.
+          </div>
+          <div x-show="activeNote" class="space-y-3">
+            <input x-model="noteDraft.title" placeholder="Title"
+                   class="w-full border rounded-md px-3 py-2 text-base font-medium" />
+            <textarea x-model="noteDraft.body" rows="14" placeholder="Markdown body…"
+                      class="w-full border rounded-md px-3 py-2 text-sm font-mono"></textarea>
+            <div class="flex items-center gap-3">
+              <input x-model="noteDraft.tags" placeholder="tags, comma-separated"
+                     class="flex-1 border rounded-md px-2 py-1.5 text-xs" />
+              <label class="text-xs flex items-center gap-1">
+                <input type="checkbox" x-model="noteDraft.pinned" /> pinned
+              </label>
+            </div>
+            <div class="flex gap-2 pt-2 border-t">
+              <button @click="saveNote()" class="bg-zinc-900 text-white text-sm px-3 py-1.5 rounded-md">Save</button>
+              <button x-show="activeNote?.id" @click="deleteNote()" class="text-red-600 text-sm px-3 py-1.5 hover:bg-red-50 rounded-md ml-auto">Delete</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <!-- ============ FILES ============ -->
+    <section x-show="active === 'files'">
+      <div class="mb-5 flex items-end justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Files</h1>
+          <p class="text-sm text-zinc-500 mt-1">
+            Your file vault. Stored locally,
+            <span x-text="fmtBytes(filesUsage.total_bytes)"></span> in
+            <span x-text="filesUsage.count"></span> files. Any AI can fetch a file's bytes via <code>files.read</code>.
+          </p>
+        </div>
+        <label class="bg-zinc-900 text-white text-sm px-3 py-1.5 rounded-md cursor-pointer">
+          <span x-show="!fileUploading">+ Upload</span>
+          <span x-show="fileUploading">Uploading…</span>
+          <input type="file" multiple class="hidden" @change="uploadFiles($event)" />
+        </label>
+      </div>
+      <div x-show="!files.length" class="bg-white border rounded-xl p-12 text-center text-zinc-400 text-sm">
+        Drop files here or click Upload. Useful for big media, references, or anything you'll want an AI to fetch later.
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <template x-for="f in files" :key="f.id">
+          <div class="bg-white border rounded-xl p-3 flex flex-col gap-1.5">
+            <div class="font-medium text-sm truncate" :title="f.filename" x-text="f.filename"></div>
+            <div class="text-xs text-zinc-500" x-text="f.mime + ' · ' + fmtBytes(f.size)"></div>
+            <div class="text-[10px] text-zinc-400 mt-1 truncate" x-show="f.tags" x-text="f.tags"></div>
+            <div class="flex gap-2 mt-auto pt-2 border-t">
+              <a :href="fileDownloadUrl(f)" target="_blank" class="text-xs border rounded-md px-2 py-1 hover:bg-zinc-50">Download</a>
+              <button @click="deleteFile(f.id)" class="text-xs text-red-600 hover:bg-red-50 rounded-md px-2 py-1 ml-auto">Delete</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ============ REMINDERS ============ -->
+    <section x-show="active === 'reminders'">
+      <div class="mb-5">
+        <h1 class="text-2xl font-semibold">Reminders</h1>
+        <p class="text-sm text-zinc-500 mt-1">
+          Time-based push to your phone. Any AI can set them; the scheduler fires them via Web Push.
+        </p>
+      </div>
+
+      <!-- Push enable card -->
+      <div x-show="!pushEnabled" class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between gap-3">
+        <div class="text-sm text-amber-900">
+          Reminders won't reach you until you enable browser notifications.
+        </div>
+        <button @click="enablePush()" :disabled="pushBusy"
+                class="bg-zinc-900 text-white text-sm px-3 py-1.5 rounded-md flex-shrink-0">
+          <span x-show="!pushBusy">Enable notifications</span>
+          <span x-show="pushBusy">Asking…</span>
+        </button>
+      </div>
+      <div x-show="pushEnabled" class="text-xs text-emerald-700 mb-4 flex items-center gap-2">
+        ✓ Notifications enabled.
+        <button @click="testPush()" class="underline">Send a test</button>
+      </div>
+
+      <!-- Create form -->
+      <div class="bg-white border rounded-xl p-4 mb-5">
+        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-3">New reminder</div>
+        <div class="space-y-2">
+          <input x-model="reminderDraft.body" placeholder="What should I remind you about?"
+                 class="w-full border rounded-md px-3 py-2 text-sm" />
+          <div class="flex flex-wrap gap-2 items-center">
+            <input type="datetime-local" x-model="reminderDraft.when"
+                   class="border rounded-md px-2 py-1.5 text-sm" />
+            <select x-model="reminderDraft.recurrence"
+                    class="border rounded-md px-2 py-1.5 text-sm">
+              <option value="">one-shot</option>
+              <option value="hourly">hourly</option>
+              <option value="daily">daily</option>
+              <option value="weekly">weekly</option>
+            </select>
+            <button @click="createReminder()" :disabled="!reminderDraft.body || !reminderDraft.when"
+                    class="bg-zinc-900 text-white text-sm px-3 py-1.5 rounded-md disabled:opacity-40">
+              Schedule
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- List -->
+      <div x-show="!reminders.length" class="bg-white border rounded-xl p-12 text-center text-zinc-400 text-sm">
+        No reminders yet.
+      </div>
+      <div class="space-y-2">
+        <template x-for="r in reminders" :key="r.id">
+          <div class="bg-white border rounded-xl p-3 flex items-start gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm" x-text="r.body"></div>
+              <div class="text-xs text-zinc-500 mt-0.5">
+                <span x-text="fmtTime(r.due_at)"></span>
+                <span x-show="r.recurrence" class="ml-2 px-1.5 py-0.5 bg-zinc-100 rounded text-[10px]" x-text="r.recurrence"></span>
+                <span class="ml-2 px-1.5 py-0.5 rounded text-[10px]"
+                      :class="{'bg-emerald-100 text-emerald-700': r.status==='pending', 'bg-zinc-100 text-zinc-500': r.status!=='pending'}"
+                      x-text="r.status"></span>
+              </div>
+            </div>
+            <div class="flex gap-1 text-xs">
+              <button x-show="r.status==='pending' || r.status==='snoozed'" @click="snoozeReminder(r.id, 10)" class="border rounded px-2 py-1 hover:bg-zinc-50">+10m</button>
+              <button x-show="r.status!=='dismissed'" @click="dismissReminder(r.id)" class="border rounded px-2 py-1 hover:bg-zinc-50">Dismiss</button>
+              <button @click="deleteReminder(r.id)" class="text-red-600 px-2 py-1 hover:bg-red-50 rounded">×</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ============ CHAT (legacy debug — hidden from main nav) ============ -->
     <section x-show="active === 'chat'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div class="lg:col-span-2 bg-white border rounded-xl flex flex-col h-[70vh]">
         <div class="px-4 py-3 border-b flex items-center justify-between">

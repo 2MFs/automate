@@ -25,6 +25,7 @@ class Paths:
     scripts: Path
     sessions: Path
     cache: Path
+    files: Path
 
     @classmethod
     def default(cls) -> "Paths":
@@ -37,10 +38,11 @@ class Paths:
             scripts=h / "scripts",
             sessions=h / "sessions",
             cache=h / "cache",
+            files=h / "files",
         )
 
     def ensure(self) -> None:
-        for p in (self.home, self.logs, self.scripts, self.sessions, self.cache):
+        for p in (self.home, self.logs, self.scripts, self.sessions, self.cache, self.files):
             p.mkdir(parents=True, exist_ok=True)
 
 

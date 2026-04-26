@@ -1,286 +1,161 @@
 # autoMate
 
-> One hub. Any AI. Real hands.
+> **Your AI's brain.** Notes · files · reminders · 30+ tools — your data,
+> your machine. Bring any AI.
 
-autoMate is a small local server with a browser UI. Install it, point it at
-any LLM (OpenAI, Claude, Kimi, DeepSeek, Ollama — 25 providers in the
-catalog), and now **any AI can use it** — including AIs that don't natively
-support tool-calling. Copy a short snippet, paste it into Claude Code,
-Kimi, ChatGPT, or your local Ollama, and that AI now has hands on your
-machine: it can run shell commands, drive your real browser, control the
-desktop, and call 30+ SaaS APIs (GitHub, Notion, Slack, 飞书, ...).
+autoMate is the personal-infrastructure layer that sits behind whichever
+AI you already use. Don't switch chat apps; switch what's behind them.
 
 ```
-   ┌─ Claude Code ──┐                              ┌─ shell.exec
-   ├─ Cursor / Cline├──── MCP ────┐                ├─ script.run (Py/Bash/Node)
-   ├─ Kimi K2 / GPT ├──── HTTP ───┤    autoMate    ├─ browser.* (Playwright)
-   ├─ Ollama / web  ├──── bridge ─┤   ───────►     ├─ bx.* (your real browser)
-   └─ your scripts  ┘             │                ├─ desktop.click/type
-                                  │                └─ 31 SaaS integrations
-                                  ▼
-                        ~/.automate/  · SQLite + encrypted creds
+   ┌─ Claude Code ──┐                  ┌─ notes.*           ← survives sessions
+   ├─ Cursor / Cline├──── MCP ────┐    ├─ files.*           ← your file vault
+   ├─ Kimi K2 / GPT ├──── HTTP ───┤    ├─ reminders.*       ← push to your phone
+   ├─ Ollama / web  ├──── bridge ─┤    ├─ memory.*          ← cross-session facts
+   └─ your scripts  ┘             │    │
+                                  ▼    ▼
+                          ┌──────────────────┐    ┌─ shell · script · browser
+                          │     autoMate     │ ── ┤  desktop · 31 SaaS APIs
+                          │  (your machine)  │    └─ your real Chrome (extension)
+                          └────────┬─────────┘
+                                   ▼
+                          ~/.automate/  · SQLite + Fernet
 ```
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  Browser UI  ·  http://127.0.0.1:8765                            │
-│  models · tool marketplace · live chat · run history             │
-└────────────────┬─────────────────────────────────────────────────┘
-                 │  HTTP · WebSocket
-┌────────────────▼─────────────────────────────────────────────────┐
-│  Unified entry point                                              │
-│  ┌──────────────┬─────────────────────────────────────────────┐  │
-│  │  REST API    │  POST /api/agent/run                        │  │
-│  │  WebSocket   │  /api/sessions/ws  (live event stream)      │  │
-│  │  MCP (stdio) │  `automate mcp`  (Claude Code, Cursor)      │  │
-│  └──────────────┴─────────────────────────────────────────────┘  │
-├──────────────────────────────────────────────────────────────────┤
-│  Agent loop                                                       │
-│  · parse NL  · pick tools  · fill args  · execute  · feed back   │
-├──────────────────────────────────────────────────────────────────┤
-│  Tools                                                            │
-│  ┌──────────┬───────────────┬──────────────────┬──────────────┐  │
-│  │ shell    │ browser       │ bx.* (your real  │ integrations │  │
-│  │ script   │ (Playwright,  │ browser via      │ github,      │  │
-│  │ desktop  │ fresh tab)    │ Chrome extension)│ notion, …    │  │
-│  └──────────┴───────────────┴──────────────────┴──────────────┘  │
-├──────────────────────────────────────────────────────────────────┤
-│  ~/.automate/  · SQLite + Fernet-encrypted credentials            │
-└──────────────────────────────────────────────────────────────────┘
-```
+## What's actually different
 
-中文文档:[README_CN.md](./README_CN.md)
+Every AI chat tool has chat. Most can call tools. None of them remember
+anything across vendors, store your files, ping your phone when something
+matters, or expose all of that to **whatever** chat tool you happen to
+open tomorrow.
 
-## Why
+| You do this in… | autoMate gives you… |
+|---|---|
+| Kimi web chat | A local hub Kimi calls into for tools, notes, files |
+| Claude Code | Same hub, accessed via MCP |
+| Cursor / Cline | Same hub, also via MCP |
+| Local Ollama in terminal | A bridge script that Ollama can shell out to |
+| Your phone PWA | The same data, in your pocket — plus reminders that push to you |
 
-You already have a favourite AI assistant. It's good at planning. What it
-can't do is reach into _your_ Notion, _your_ GitHub, _your_ shell, _your_
-already-logged-in browser. autoMate is the executor that fills that gap. It
-lives on your machine, holds your credentials locally, and exposes a single
-clean surface that any LLM — even ones that don't speak MCP, even ones that
-can only output text — can drive.
-
-### Connect any AI in 30 seconds
-
-Open the **Connect AI** tab in autoMate's UI; copy the snippet that matches
-what you're using. Four modes:
-
-| Mode      | For                                                    |
-|-----------|--------------------------------------------------------|
-| **MCP**   | Claude Code · Cursor · Cline · Kimi K2 · any MCP host  |
-| **HTTP**  | ChatGPT custom GPTs · n8n · Make · your own scripts    |
-| **Bridge**| Tool-less LLMs (basic Ollama, web chat) — relay script |
-| **OpenAPI** | Agents that can read schemas (`/openapi.json`)       |
-
-Or skip the snippets and just chat with autoMate directly in its own UI.
-
-### Use it on your phone
-
-The UI is a Progressive Web App. Run the hub on your laptop with
-`automate serve --host 0.0.0.0`, then open `http://<laptop-ip>:8765` in
-mobile Chrome / Safari → **Add to Home Screen**. Phone is the controller;
-your laptop runs the actual tools.
-
-For internet-wide access without opening a port, use the relay client:
-
-```bash
-automate relay wss://relay.example.com/tunnel --token YOUR_TOKEN
-```
-
-Protocol + self-host guide: [docs/relay.md](./docs/relay.md). A hosted relay
-is on the roadmap.
-
-- **Bring your own brain.** 25+ LLM providers in the catalog (OpenAI, Anthropic,
-  Gemini, Kimi, Qwen, DeepSeek, Doubao, GLM, Yi, MiniMax, Hunyuan, Baichuan,
-  StepFun, Mistral, Grok, OpenRouter, Groq, Together, Fireworks, Ollama,
-  LM Studio, vLLM, …). Pick one, swap any time.
-- **Click-through OAuth.** GitHub, Notion, Slack, Linear, 飞书, 钉钉. No env
-  vars to copy-paste. Other integrations use API keys, also one-click and
-  encrypted at rest.
-- **Local hands, real privileges.** `shell.exec` runs anything the autoMate
-  process can run. `script.run` writes Python/Bash/Node and executes.
-  `desktop.*` is pyautogui under the hood.
-- **Two flavours of browser control.** `browser.*` spawns a fresh Chromium
-  tab via Playwright (great for headless tasks). `bx.*` drives **your real
-  browser** via the autoMate Chrome extension — your tabs, your cookies, your
-  logins. Install once from `extension/`.
-- **One process, three doorways.** REST, WebSocket, MCP — same registry, same
-  agent. No second deployment.
+The data lives in `~/.automate/`. Your files, notes, reminders, and tool
+credentials never leave the machine unless you opt in to the relay.
 
 ## Install
 
-Pick whichever path fits.
+| Path | Get | When |
+|---|---|---|
+| `pip install 'automate-hub[full]'` | Python package | Have Python, want it small |
+| Standalone binary (Win / macOS / Linux) | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | No Python, double-click |
+| Docker | `docker run -p 8765:8765 ghcr.io/yuruotong1/automate:latest` | Headless box / NAS |
+| Browser extension | [`extension/`](./extension/) | Drive your real Chrome |
+| Android APK | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | Phone (TWA wrapper around the PWA) |
+| iOS / "any phone" | Open the hub URL → Add to Home Screen | PWA, works on every phone |
 
-### 1. pip (recommended for developers)
-
-```bash
-pip install 'automate-hub[full]'
-automate serve
-```
-
-| extra      | what it adds                                                              |
-| ---------- | ------------------------------------------------------------------------- |
-| `mcp`      | stdio MCP entry (`automate mcp`) for Claude Code / Cursor / Cline.        |
-| `browser`  | Playwright. Run `python -m playwright install chromium` after install.    |
-| `desktop`  | pyautogui. Skip on headless servers.                                      |
-| `full`     | All of the above.                                                         |
-
-### 2. Standalone binary (no Python required)
-
-Download from the [Releases page](https://github.com/yuruotong1/autoMate/releases) —
-Windows / macOS (Apple Silicon) / Linux. Unzip and run `./automate/automate serve`.
-
-### 3. Docker
+After install:
 
 ```bash
-docker run --rm -p 8765:8765 -v automate-data:/data \
-  ghcr.io/yuruotong1/automate:latest
+automate          # double-click on Windows/macOS does the same thing
 ```
 
-Or build it yourself: `docker build -t automate-hub . && docker run -p 8765:8765 automate-hub`.
+Browser opens to `http://127.0.0.1:8765`. The welcome wizard walks you
+through picking a model and pasting a key. ~2 minutes.
 
-### 4. Browser extension (one extra step for `bx.*` tools)
+## Connect your other AI
 
-After installing autoMate by any of the above, open `chrome://extensions`,
-toggle **Developer mode**, click **Load unpacked**, pick the `extension/`
-folder. The toolbar badge flips to green **ON** when paired. See
-[`extension/README.md`](./extension/README.md).
+Open the **Connect AI** tab, copy the snippet that matches your client.
+Four modes:
 
-## Run
+| Mode      | Who it's for                                                |
+|-----------|--------------------------------------------------------------|
+| **MCP**   | Claude Code · Cursor · Cline · Kimi K2 · any MCP host        |
+| **HTTP**  | ChatGPT custom GPTs · n8n · Make · your own scripts          |
+| **Bridge**| Tool-less LLMs (basic Ollama, web chat) — relay shell script |
+| **OpenAPI** | Agents that can self-discover schemas (`/openapi.json`)    |
 
-```bash
-automate serve            # web UI + REST + WebSocket on http://127.0.0.1:8765
-automate mcp              # expose tools as a stdio MCP server
-automate doctor           # show paths, configured providers, integrations
-```
+That AI now has your hub's full tool catalog as native function calls.
 
-Data lives under `~/.automate/`. Credentials are encrypted with a key at
-`~/.automate/secret.key` (chmod 600). Override the location with
-`AUTOMATE_HOME=/path`.
+## Use it on your phone
 
-## Use it
+The UI is a Progressive Web App. Two paths:
 
-### From the browser
+1. **Same WiFi** (free): on your laptop, run
+   `automate serve --host 0.0.0.0`. Find the LAN IP. On your phone,
+   browse to `http://<your-ip>:8765` → menu → **Add to Home Screen**.
+2. **Anywhere** (with relay): your laptop dials out to a relay,
+   the phone connects via the relay's HTTPS URL. See
+   [docs/relay.md](./docs/relay.md). Hosted relay is on the roadmap;
+   self-hosting is documented.
 
-Open the chat tab, type `git status this repo and summarise what changed`. The
-event stream shows the model picking `shell.exec`, the result coming back, and
-the final summary. Every run is logged to the History tab.
-
-### From Claude Code / Cursor / Cline / Kimi (MCP)
-
-Add this to your client's MCP config:
-
-```json
-{
-  "mcpServers": {
-    "automate": { "command": "automate", "args": ["mcp"] }
-  }
-}
-```
-
-Now the upstream LLM sees one top-level `automate(prompt)` tool plus every
-individual tool — `shell.exec`, `bx.click`, `notion_search`, etc. Use the
-prompt-shaped tool when you want autoMate to figure out the steps. Use the
-specific tools when the upstream model already has a plan. **They plan, we
-execute** — that's the whole division of labour.
-
-### From any HTTP client
-
-```bash
-# Natural-language request — autoMate plans + executes.
-curl -X POST http://127.0.0.1:8765/api/agent/run \
-  -H 'content-type: application/json' \
-  -d '{"prompt": "create a GitHub issue in foo/bar titled smoke test"}'
-
-# Or call a single tool directly when you already know what you want.
-curl -X POST http://127.0.0.1:8765/api/execute/shell.exec \
-  -H 'content-type: application/json' \
-  -d '{"args": {"command": "git status"}}'
-```
-
-Live progress streams over `ws://127.0.0.1:8765/api/sessions/ws` — send
-`{"prompt": "..."}` and receive event objects (`thinking`, `tool_call`,
-`tool_result`, `final`).
+The phone is a controller; your laptop runs the actual tools (a phone
+sandbox can't run shell or drive your real browser).
 
 ## What's in the box
 
-**LLM providers (25)** — OpenAI · Anthropic · Google Gemini · xAI Grok ·
+**Personal data (v5, new)**
+- `notes.*` — markdown documents with tags, search, pinning
+- `files.*` — content-addressed blob vault, deduplication, multipart upload
+- `reminders.*` — scheduler thread fires Web Push to your PWA
+- `memory.*` — long-term key-value facts that any AI can read/write
+
+**Local executors**
+- `shell.*`, `script.*` (Python/Bash/Node), `desktop.*` (pyautogui)
+- `browser.*` (Playwright, fresh Chromium tab)
+- `bx.*` (your real browser via the [Chrome extension](./extension/README.md))
+
+**SaaS integrations** — 31 platforms: GitHub · GitLab · Gitee · Notion ·
+Slack · Linear · Jira · Confluence · Trello · Asana · Monday.com · HubSpot ·
+Airtable · Stripe · Shopify · Telegram · Discord · MS Teams · Zoom ·
+Twitter/X · SendGrid · Mailchimp · Twilio · Sentry · 飞书 · 钉钉 · 企业微信 ·
+微信公众号 · 微博 · 语雀 · 高德地图.
+
+**LLM providers** — 25 in the catalog: OpenAI · Anthropic · Gemini · xAI Grok ·
 Mistral · Cohere · OpenRouter · Groq · Together · Fireworks · DeepInfra ·
-DeepSeek · Moonshot Kimi · 通义千问 · 字节豆包 · 智谱 GLM · 百川 · 01.AI Yi ·
-MiniMax · 阶跃星辰 · 腾讯混元 · 硅基流动 · Ollama · LM Studio · any
-OpenAI-compatible endpoint.
-
-**SaaS integrations (31)** — GitHub · GitLab · Gitee · Notion · Slack · Linear ·
-Jira · Confluence · Trello · Asana · Monday.com · HubSpot · Airtable · Stripe ·
-Shopify · Telegram · Discord · Microsoft Teams · Zoom · Twitter/X · SendGrid ·
-Mailchimp · Twilio · Sentry · 飞书 · 钉钉 · 企业微信 · 微信公众号 · 微博 ·
-语雀 · 高德地图.
-
-**Local executors** — `shell.exec` · `shell.cwd` · `script.run` · `script.list` ·
-`script.read` · `desktop.screenshot` · `desktop.click` · `desktop.type` ·
-`desktop.press` · `desktop.size`.
-
-**Headless browser** (Playwright) — `browser.open` · `browser.click` ·
-`browser.type` · `browser.extract` · `browser.screenshot` · `browser.close`.
-
-**Your real browser** (Chrome extension) — `bx.tabs` · `bx.open` · `bx.activate` ·
-`bx.close` · `bx.navigate` · `bx.screenshot` · `bx.click` · `bx.type` ·
-`bx.extract` · `bx.scroll` · `bx.eval`.
+DeepSeek · Moonshot Kimi · 通义 · 豆包 · GLM · 百川 · Yi · MiniMax · 阶跃 ·
+混元 · 硅基流动 · Ollama · LM Studio · any OpenAI-compatible.
 
 ## Project layout
 
 ```
 autoMate/
-├─ automate/              # the package
-│  ├─ server/             # FastAPI app, routers, MCP bridge
-│  │  └─ api/             # REST + WebSocket endpoints
-│  ├─ agent/              # NL → tool-call loop
-│  ├─ providers/          # LLM provider catalog + clients
-│  ├─ tools/              # shell · script · browser · desktop · bx · adapter
-│  ├─ integrations/       # 31 SaaS connectors (github, notion, slack, …)
-│  ├─ oauth/              # auth-code flow + provider catalog
-│  ├─ store/              # SQLite + Fernet vault
-│  ├─ frontend/           # static SPA (Tailwind + Alpine, no build step)
-│  ├─ extension_bus.py    # sync ↔ async bridge for the Chrome extension
-│  ├─ settings.py · cli.py · version.py
-├─ extension/             # Chrome MV3 extension (load unpacked)
-├─ packaging/             # PyInstaller spec for binary builds
+├─ automate/                 # the package
+│  ├─ server/                # FastAPI app, REST + WS + MCP bridge
+│  ├─ agent/                 # NL → tool-call loop
+│  ├─ providers/             # LLM provider catalog + clients
+│  ├─ tools/                 # shell · script · browser · desktop · bx
+│  │                         # plus notes · files · reminders · memory
+│  ├─ integrations/          # 31 SaaS connectors
+│  ├─ oauth/                 # OAuth flows
+│  ├─ store/                 # SQLite + Fernet vault
+│  ├─ frontend/              # static SPA — PWA installable
+│  ├─ notes.py · files.py · reminders.py · memory.py · push.py
+│  ├─ relay.py               # reverse-tunnel client for the optional relay
+│  └─ extension_bus.py       # bridge to the Chrome extension
+├─ extension/                # Chrome MV3 extension (load unpacked)
+├─ packaging/                # PyInstaller spec
+├─ docs/relay.md             # relay protocol + self-host guide
 ├─ Dockerfile
 └─ pyproject.toml
 ```
 
-## Adding a new tool
+## Privacy & safety
 
-```python
-# automate/tools/myfeature.py
-from .registry import Tool, ToolRegistry
-
-def register(reg: ToolRegistry) -> None:
-    reg.register(Tool(
-        name="myfeature.do",
-        description="Do the thing.",
-        parameters={"type": "object", "properties": {"x": {"type": "string"}}, "required": ["x"]},
-        handler=lambda x: {"echoed": x},
-        category="custom",
-    ))
-```
-
-Then call `register(reg)` from `automate/tools/registry.py::build_default_registry`.
-
-## Adding a new LLM provider
-
-Append a `ProviderSpec` to `automate/providers/catalog.py`. If the provider
-speaks the OpenAI chat-completions schema (most do, including all Chinese
-ones), nothing else is needed. The UI picks it up on next reload.
+- Server binds to `127.0.0.1`. Network access is opt-in (`--host 0.0.0.0`).
+- API keys, OAuth tokens, push subscriptions: encrypted with Fernet,
+  key at `~/.automate/secret.key` (chmod 600).
+- LLM calls go directly from autoMate to the provider you chose. Nothing
+  else sees them.
+- `shell.exec` and `script.run` run with the autoMate process's full
+  privileges. Treat it like any automation tool: only run prompts you'd
+  run yourself.
 
 ## Status
 
-v1.0 — server, agent loop, MCP bridge, all integrations adapted, OAuth
-implemented for GitHub / Notion / Slack / Linear / 飞书 / 钉钉, click-through
-flow for the rest. Headless browser via Playwright; live browser via Chrome
-extension. Multi-OS distribution: pip, standalone binaries, Docker. Tested
-against Python 3.10–3.12.
+v5.0 — personal-infra layer (notes / files / reminders / memory) with
+Web Push to PWA. Multi-platform distribution: pip · standalone binary ·
+Docker · Chrome extension · Android APK · iOS PWA. Relay protocol
+specified, hosted relay roadmapped.
+
+中文版: [README_CN.md](./README_CN.md)
 
 ## License
 
-MIT. See `LICENSE`.
+MIT.

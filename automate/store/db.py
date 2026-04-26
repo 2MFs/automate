@@ -32,9 +32,9 @@ CREATE TABLE IF NOT EXISTS providers (
 );
 
 CREATE TABLE IF NOT EXISTS connections (
-  id            TEXT PRIMARY KEY,         -- e.g. 'github', 'notion'
+  id            TEXT PRIMARY KEY,
   display_name  TEXT NOT NULL,
-  auth_kind     TEXT NOT NULL,            -- 'oauth' | 'apikey' | 'none'
+  auth_kind     TEXT NOT NULL,
   status        TEXT NOT NULL DEFAULT 'disconnected',
   token_enc     TEXT,
   refresh_enc   TEXT,
@@ -50,13 +50,72 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS runs (
   id          TEXT PRIMARY KEY,
-  source      TEXT NOT NULL,              -- 'web' | 'mcp' | 'http' | 'cli'
+  source      TEXT NOT NULL,
   prompt      TEXT NOT NULL,
-  status      TEXT NOT NULL,              -- 'running' | 'done' | 'error'
+  status      TEXT NOT NULL,
   trace_json  TEXT NOT NULL DEFAULT '[]',
   result      TEXT,
   started_at  REAL NOT NULL,
   ended_at    REAL
+);
+
+-- v5: personal infrastructure tables ----------------------------------------
+
+CREATE TABLE IF NOT EXISTS notes (
+  id           TEXT PRIMARY KEY,
+  title        TEXT NOT NULL,
+  body         TEXT NOT NULL DEFAULT '',
+  tags         TEXT NOT NULL DEFAULT '',          -- comma-separated
+  pinned       INTEGER NOT NULL DEFAULT 0,
+  created_at   REAL NOT NULL,
+  updated_at   REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS notes_updated_idx ON notes(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS files_meta (
+  id           TEXT PRIMARY KEY,
+  sha256       TEXT NOT NULL,
+  filename     TEXT NOT NULL,
+  mime         TEXT NOT NULL DEFAULT 'application/octet-stream',
+  size         INTEGER NOT NULL,
+  tags         TEXT NOT NULL DEFAULT '',
+  description  TEXT NOT NULL DEFAULT '',
+  created_at   REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS files_sha_idx     ON files_meta(sha256);
+CREATE INDEX IF NOT EXISTS files_created_idx ON files_meta(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS reminders (
+  id            TEXT PRIMARY KEY,
+  body          TEXT NOT NULL,
+  due_at        REAL NOT NULL,
+  recurrence    TEXT,                              -- 'daily' | 'weekly' | NULL
+  status        TEXT NOT NULL DEFAULT 'pending',   -- pending|fired|snoozed|dismissed
+  fired_at      REAL,
+  context_json  TEXT NOT NULL DEFAULT '{}',
+  created_at    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS reminders_due_idx ON reminders(status, due_at);
+
+CREATE TABLE IF NOT EXISTS memory (
+  key         TEXT PRIMARY KEY,
+  value       TEXT NOT NULL,
+  updated_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint    TEXT PRIMARY KEY,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  user_agent  TEXT NOT NULL DEFAULT '',
+  created_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS push_keys (
+  id              INTEGER PRIMARY KEY CHECK (id = 1),
+  vapid_private   TEXT NOT NULL,
+  vapid_public    TEXT NOT NULL,
+  vapid_subject   TEXT NOT NULL DEFAULT 'mailto:admin@automate.local'
 );
 """
 

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from ..agent import AgentLoop
 from ..providers import ProviderManager
+from ..reminders import Scheduler
 from ..settings import PATHS, SERVER
 from ..store import Database, get_db
 from ..tools import ToolRegistry, build_default_registry
@@ -16,6 +17,7 @@ class AppState:
     providers: ProviderManager
     registry: ToolRegistry
     agent: AgentLoop
+    scheduler: Scheduler
 
 
 def build_state() -> AppState:
@@ -25,4 +27,6 @@ def build_state() -> AppState:
     providers.seed_catalog()
     registry = build_default_registry()
     agent = AgentLoop(db=db, providers=providers, registry=registry)
-    return AppState(db=db, providers=providers, registry=registry, agent=agent)
+    scheduler = Scheduler(db)
+    scheduler.start()
+    return AppState(db=db, providers=providers, registry=registry, agent=agent, scheduler=scheduler)

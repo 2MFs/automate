@@ -1,10 +1,10 @@
 // autoMate service worker.
 //
-// Goal: install the SPA shell so the app launches offline-first when the user
-// has it pinned to home screen. API calls always go to the network — the hub
-// is the source of truth.
+// Two responsibilities:
+//   1. Cache the SPA shell so launching from the home screen feels instant.
+//   2. Receive Web Push notifications for reminders and surface them.
 
-const SHELL = "automate-shell-v1";
+const SHELL = "automate-shell-v5";
 const ASSETS = [
   "/", "/index.html", "/app.js", "/styles.css",
   "/icon-192.png", "/icon-512.png",
@@ -24,10 +24,8 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  // API + WebSocket: always network. We never cache them.
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/oauth/")) return;
   if (e.request.method !== "GET") return;
-  // Static shell: cache-first, network fallback.
   e.respondWith(
     caches.match(e.request).then((hit) =>
       hit || fetch(e.request).then((res) => {
@@ -38,5 +36,35 @@ self.addEventListener("fetch", (e) => {
         return res;
       }).catch(() => caches.match("/index.html"))
     )
+  );
+});
+
+// ---- Web Push (reminders) ----
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { /* noop */ }
+  const title = data.title || "autoMate";
+  const opts = {
+    body: data.body || "",
+    tag: data.tag || "automate",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: { url: data.url || "/" },
+    requireInteraction: false,
+  };
+  event.waitUntil(self.registration.showNotification(title, opts));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const c of wins) {
+        if ("focus" in c) return c.focus();
+      }
+      if (clients.openWindow) return clients.openWindow(target);
+    })
   );
 });

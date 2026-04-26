@@ -80,9 +80,19 @@ def build_default_registry() -> ToolRegistry:
     from . import browser as _browser
     from . import browser_ext as _bx
     from . import desktop as _desktop
+    from . import notes as _notes
+    from . import files as _files
+    from . import reminders as _reminders
+    from . import memory as _memory
     from . import integrations_adapter as _ia
 
     reg = ToolRegistry()
+    # Personal-infra tools first — these are autoMate's identity in v5.
+    _notes.register(reg)
+    _files.register(reg)
+    _reminders.register(reg)
+    _memory.register(reg)
+    # Then the local executors and integrations.
     _shell.register(reg)
     _script.register(reg)
     _browser.register(reg)

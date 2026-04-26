@@ -126,11 +126,52 @@ jobs:
           name: autoMate-extension
           path: autoMate-extension.zip
 
-  android:
-    # Best-effort APK: a TWA shell that opens the hub URL.
-    # Skipped if the build fails so a missing APK never blocks a release.
-    name: Build Android APK (TWA)
+  pages:
+    # Publish the SPA (frontend/) to GitHub Pages so the Android TWA APK has
+    # a public HTTPS origin to wrap. Phone PWA installs also benefit.
+    name: Deploy PWA to GitHub Pages
     needs: resolve
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage PWA + asset links
+        run: |
+          mkdir -p site/.well-known
+          cp -r automate/frontend/* site/
+          # 404 → index.html so SPA routes work
+          cp site/index.html site/404.html
+          # Asset links file (TWA will overwrite the SHA256 below in a future
+          # iteration; for now the TWA opens in Chrome Custom Tab fallback).
+          cat > site/.well-known/assetlinks.json <<'EOF'
+          [{
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+              "namespace": "android_app",
+              "package_name": "dev.automate.hub",
+              "sha256_cert_fingerprints": ["PLACEHOLDER"]
+            }
+          }]
+          EOF
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  android:
+    # Best-effort APK that wraps the GitHub Pages PWA. The TWA opens the
+    # hosted UI; the user then sets their hub URL in-app (Help → Connect
+    # this UI to a different hub).
+    name: Build Android APK (TWA)
+    needs: [resolve, pages]
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -141,40 +182,34 @@ jobs:
         with: { distribution: "temurin", java-version: "17" }
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli@latest
-      - name: Generate TWA project
+      - name: Wait briefly for Pages to propagate
+        run: sleep 30
+      - name: Init + build TWA
         run: |
           mkdir twa && cd twa
-          # The TWA points at a publicly-reachable URL — use the project page
-          # as a safe default. End users override the hub URL inside the app
-          # via Settings → 'Connect this UI to a different hub'.
-          cat > twa-manifest.json <<'EOF'
-          {
-            "packageId": "dev.automate.hub",
-            "host": "yuruotong1.github.io",
-            "name": "autoMate",
-            "launcherName": "autoMate",
-            "themeColor": "#18181b",
-            "navigationColor": "#18181b",
-            "backgroundColor": "#fafafa",
-            "startUrl": "/autoMate/",
-            "iconUrl": "https://raw.githubusercontent.com/yuruotong1/autoMate/master/automate/frontend/icon-512.png",
-            "appVersion": "${{ needs.resolve.outputs.tag }}"
-          }
-          EOF
-          # Generating the Bubblewrap project requires interactive prompts;
-          # fall back to a stub APK if it doesn't work in CI.
-          bubblewrap init --manifest=twa-manifest.json --skipPwaValidation || true
-          bubblewrap build --skipPwaValidation || true
+          MANIFEST_URL="https://${{ github.repository_owner }}.github.io/autoMate/manifest.webmanifest"
+          # Bubblewrap can read manifest from URL; --skipPwaValidation lets
+          # it proceed even if assetlinks isn't yet configured.
+          npx -y @bubblewrap/cli init \
+            --manifest "$MANIFEST_URL" \
+            --directory . \
+            --skipPwaValidation || exit 0
+          # Sign with auto-generated keystore; non-interactive password.
+          export PWA_KEY_PASSWORD=automatehub
+          export PWA_KEYSTORE_PASSWORD=automatehub
+          npx -y @bubblewrap/cli build --skipPwaValidation || exit 0
           ls -la
       - name: Locate APK
         id: locate
         run: |
-          apk=$(find twa -name '*.apk' | head -1)
+          apk=$(find twa -name '*-release-signed.apk' -o -name '*.apk' | head -1)
           if [ -n "$apk" ]; then
             cp "$apk" autoMate-android.apk
             echo "found=true" >> "$GITHUB_OUTPUT"
+            ls -lh autoMate-android.apk
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "(no APK produced — will not block release)"
           fi
       - uses: actions/upload-artifact@v4
         if: steps.locate.outputs.found == 'true'
@@ -201,7 +236,7 @@ jobs:
 
   release:
     name: Publish Release
-    needs: [resolve, build, extension, wheel, android]
+    needs: [resolve, build, extension, wheel, pages, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
