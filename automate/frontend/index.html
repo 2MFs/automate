@@ -275,6 +275,26 @@
     </div>
   </header>
 
+  <!-- v4.5.3: in-app notice modal — replaces native alert() which on
+       Android WebView shows a scary "网址为'file://'的网页显示" header. -->
+  <div x-show="notice.open" x-cloak x-transition.opacity
+       class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+       @click.self="dismissNotice()">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl">
+      <div class="text-2xl mb-2" x-text="notice.icon || '💡'"></div>
+      <h3 class="font-semibold text-base mb-1" x-text="notice.title"></h3>
+      <p class="text-sm text-zinc-600 leading-relaxed mb-4 whitespace-pre-line" x-text="notice.body"></p>
+      <div class="flex gap-2 justify-end">
+        <button x-show="notice.cta_secondary" @click="notice.cta_secondary?.action?.(); dismissNotice()"
+                class="text-sm px-3 py-2 text-zinc-600 hover:text-zinc-900"
+                x-text="notice.cta_secondary?.label"></button>
+        <button @click="notice.cta?.action?.(); dismissNotice()"
+                class="text-sm bg-zinc-900 text-white px-4 py-2 rounded-md"
+                x-text="notice.cta?.label || 'OK'"></button>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings bottom-sheet (hub URL, sync, version info live here now) -->
   <div x-show="settingsOpen" x-cloak x-transition.opacity
        class="fixed inset-0 bg-black/40 z-40" @click.self="settingsOpen = false">
@@ -289,7 +309,9 @@
       </div>
 
       <div class="space-y-4">
-        <div>
+        <div id="settings-hub-url"
+             :class="hubUrlFlash ? 'ring-2 ring-amber-400 rounded-lg p-2 -m-2' : ''"
+             class="transition-all duration-500">
           <label class="block text-xs font-medium text-zinc-700 mb-1">Hub URL</label>
           <p class="text-xs text-zinc-500 mb-2 leading-relaxed">
             By default this app stores notes locally. To get the full warehouse

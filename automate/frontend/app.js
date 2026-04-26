@@ -86,6 +86,40 @@ document.addEventListener("alpine:init", () => {
     integrationFilter: "",
     botForm: {},
 
+    // ---- v4.5.3: in-app notice (replaces native alert) ----
+    notice: { open: false, icon: "", title: "", body: "", cta: null, cta_secondary: null },
+    hubUrlFlash: false,
+
+    showNotice(opts) {
+      this.notice = {
+        open: true,
+        icon: opts.icon || "💡",
+        title: opts.title || "",
+        body: opts.body || "",
+        cta: opts.cta || null,
+        cta_secondary: opts.cta_secondary || null,
+      };
+    },
+    dismissNotice() {
+      this.notice = { ...this.notice, open: false };
+    },
+
+    openSettingsToHub() {
+      // Open settings AND scroll to the Hub URL field AND briefly
+      // highlight it. Without this, opening settings dumps the user
+      // wherever the sheet was last scrolled — they don't know where
+      // to look.
+      this.settingsOpen = true;
+      this.$nextTick(() => {
+        const el = document.getElementById("settings-hub-url");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          this.hubUrlFlash = true;
+          setTimeout(() => { this.hubUrlFlash = false; }, 2400);
+        }
+      });
+    },
+
     // ---- v4.5: voice recording ----
     recording: false,
     recordingTimer: "0:00",
@@ -105,8 +139,17 @@ document.addEventListener("alpine:init", () => {
       if (!this.cloudInfo?.logged_in) {
         await this.loadCloudInfo();
         if (!this.cloudInfo?.logged_in) {
-          alert("Audio transcription needs a Pro subscription. Sign in via Settings → autoMate Cloud.");
-          this.settingsOpen = true;
+          this.showNotice({
+            icon: "🎙",
+            title: "Pro feature",
+            body:
+              "Audio transcription needs an autoMate Cloud account. " +
+              "Sign in (or sign up) from Settings → autoMate Cloud.",
+            cta: {
+              label: "Open Settings",
+              action: () => { this.settingsOpen = true; },
+            },
+          });
           return;
         }
       }
@@ -136,7 +179,8 @@ document.addEventListener("alpine:init", () => {
           this.recordingTimer = `${m}:${String(s % 60).padStart(2, "0")}`;
         }, 500);
       } catch (e) {
-        alert("Microphone access denied: " + e.message);
+        this.showNotice({ icon: "🎙", title: "Microphone blocked",
+          body: "autoMate couldn't access the microphone:\n\n" + e.message });
       }
     },
 
@@ -508,15 +552,27 @@ document.addEventListener("alpine:init", () => {
 
     openWizard() {
       // Hard pre-flight: configuring a provider lives on the hub, so
-      // the wizard cannot work in local-only mode. Without this check,
-      // every "Connect and test" click ends in "Failed to fetch" with
-      // no way for the user to know why.
+      // the wizard cannot work in local-only mode. Without this we'd
+      // happily collect the user's API key and then fail with "Failed
+      // to fetch" with no way for them to know why.
       if (this.storageMode === "local") {
-        this.settingsOpen = true;
-        alert(
-          "Provider configuration lives on the hub.\n\n" +
-          "Open Settings → paste your hub URL first, then come back to add a model."
-        );
+        this.showNotice({
+          icon: "💻",
+          title: "Connect a hub first",
+          body:
+            "AI providers (Kimi, Claude, etc.) run on a 'hub' — a copy of " +
+            "autoMate running on your computer or server. Your phone talks " +
+            "to it over Wi-Fi.\n\nPaste the hub URL in Settings, then come " +
+            "back here to add a model.",
+          cta: {
+            label: "Open Settings",
+            action: () => this.openSettingsToHub(),
+          },
+          cta_secondary: {
+            label: "Help",
+            action: () => { this.active = "help"; },
+          },
+        });
         return;
       }
       this.wizardOpen = true;
@@ -616,7 +672,8 @@ document.addEventListener("alpine:init", () => {
     async syncWithHub() {
       const hub = (this.hubBaseInput || hubBase()).trim().replace(/\/$/, "");
       if (!hub) {
-        alert("Enter a hub URL first.");
+        this.showNotice({ title: "Enter a hub URL first",
+          body: "Paste your hub's URL above (e.g. http://192.168.1.20:8765) before syncing." });
         return;
       }
       this.syncing = true;
@@ -649,10 +706,13 @@ document.addEventListener("alpine:init", () => {
         localStorage.setItem("automate-hub-base", hub);
         localStorage.setItem("automate-last-sync", String(Date.now() / 1000));
         this.lastSync = Date.now() / 1000;
-        alert(`Synced ${snapshot.notes.length} notes + ${snapshot.memory.length} memory items.\nReloading…`);
+        this.showNotice({ icon: "✅", title: "Sync complete",
+          body: `Synced ${snapshot.notes.length} notes + ${snapshot.memory.length} memory items.\n\nReloading…`,
+          cta: { label: "OK", action: () => location.reload() } });
+        return;
         location.reload();
       } catch (e) {
-        alert("Sync failed: " + e.message);
+        this.showNotice({ icon: "⚠️", title: "Sync failed", body: e.message });
       } finally {
         this.syncing = false;
       }
@@ -737,7 +797,11 @@ document.addEventListener("alpine:init", () => {
       this.pushBusy = true;
       try {
         const perm = await Notification.requestPermission();
-        if (perm !== "granted") { alert("Notifications denied."); return; }
+        if (perm !== "granted") {
+          this.showNotice({ icon: "🔕", title: "Notifications blocked",
+            body: "Enable notifications in your browser/OS to get reminder pings." });
+          return;
+        }
         const reg = await navigator.serviceWorker.ready;
         const cfg = await api("/api/push/config");
         const key = urlBase64ToUint8Array(cfg.vapid_public_key);
@@ -753,14 +817,15 @@ document.addEventListener("alpine:init", () => {
         });
         this.pushEnabled = true;
       } catch (e) {
-        alert("Push setup failed: " + e.message);
+        this.showNotice({ icon: "⚠️", title: "Push setup failed", body: e.message });
       } finally {
         this.pushBusy = false;
       }
     },
     async testPush() {
       const r = await api("/api/push/test", "POST");
-      alert(`sent=${r.sent}, failed=${r.failed}` + (r.reason ? `\n${r.reason}` : ""));
+      this.showNotice({ icon: "📨", title: "Test push sent",
+        body: `sent=${r.sent}, failed=${r.failed}` + (r.reason ? `\n${r.reason}` : "") });
     },
 
     async refreshStatus() { this.status = await api("/api/status"); },
