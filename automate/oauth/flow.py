@@ -1,14 +1,11 @@
-"""Authorization-code OAuth helper.
+"""In-process registry of in-flight OAuth attempts.
 
-A typical click-to-connect flow:
+For PKCE flows we hold the verifier between ``/connect`` (where it's
+generated) and ``/oauth/<id>/callback`` (where it's used in token
+exchange). For broker flows we just remember which ``flow_id`` belongs
+to which provider so we can finalise on callback.
 
-1. UI calls ``GET /api/integrations/<id>/connect`` → server builds an authorize
-   URL with a one-time ``state`` token, stashes it in ``OAuthFlow.PENDING``,
-   redirects the browser.
-2. Provider redirects back to ``/oauth/<id>/callback?code=...&state=...``. The
-   server verifies state, calls :func:`exchange_code`, and writes the resulting
-   token into the ``connections`` table (encrypted).
-3. UI polls ``GET /api/integrations/<id>`` to see the connected status.
+Entries auto-expire after 10 minutes.
 """
 from __future__ import annotations
 
@@ -18,7 +15,6 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
-from ..store import Vault
 from .catalog import OAuthSpec
 
 
@@ -26,9 +22,10 @@ from .catalog import OAuthSpec
 class PendingState:
     provider_id: str
     redirect_uri: str
-    client_id: str
-    client_secret: str
-    created_at: float
+    flow: str                              # "pkce" or "broker"
+    pkce_verifier: str | None = None       # only set for flow="pkce"
+    broker_flow_id: str | None = None      # only set for flow="broker"
+    created_at: float = 0.0
 
 
 class OAuthFlow:
@@ -52,13 +49,16 @@ class OAuthFlow:
             cls.PENDING.pop(k, None)
 
     @staticmethod
-    def authorize_url(spec: OAuthSpec, *, client_id: str, redirect_uri: str,
-                      state: str, scopes: tuple[str, ...] | None = None) -> str:
+    def authorize_url_pkce(spec: OAuthSpec, *, client_id: str, redirect_uri: str,
+                           state: str, code_challenge: str,
+                           scopes: tuple[str, ...] | None = None) -> str:
         params = {
             "client_id": client_id,
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
         }
         scope_list = scopes if scopes is not None else spec.scopes
         if scope_list:
@@ -67,14 +67,15 @@ class OAuthFlow:
         return f"{spec.authorize_url}?{urllib.parse.urlencode(params)}"
 
 
-def exchange_code(spec: OAuthSpec, *, code: str, redirect_uri: str,
-                  client_id: str, client_secret: str) -> dict:
+def exchange_code_pkce(spec: OAuthSpec, *, code: str, redirect_uri: str,
+                       client_id: str, code_verifier: str) -> dict:
+    """PKCE token exchange — no client_secret."""
     body = urllib.parse.urlencode({
         "client_id": client_id,
-        "client_secret": client_secret,
         "code": code,
         "redirect_uri": redirect_uri,
         "grant_type": "authorization_code",
+        "code_verifier": code_verifier,
     }).encode()
     req = urllib.request.Request(
         spec.token_url,
@@ -89,5 +90,4 @@ def exchange_code(spec: OAuthSpec, *, code: str, redirect_uri: str,
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        # GitHub returns x-www-form-urlencoded by default
         return dict(urllib.parse.parse_qsl(raw))

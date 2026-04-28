@@ -60,10 +60,9 @@ document.addEventListener("alpine:init", () => {
     testResult: null,
 
     editingIntegration: null,
-    integrationForm: { token: "", client_id: "", client_secret: "" },
+    integrationForm: { token: "" },
     connecting: false,
     connectResult: null,
-    showOAuthAdvanced: false,
     integrationFilter: "",
     botForm: {},
 
@@ -572,40 +571,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    integrationHints: {
-      github:     { label: "Personal Access Token",       url: "https://github.com/settings/tokens/new?scopes=repo,read:user,read:org", hint: "Settings → Developer settings → Personal access tokens (classic). Tick: repo, read:user, read:org." },
-      gitlab:     { label: "Personal Access Token",       url: "https://gitlab.com/-/user_settings/personal_access_tokens", hint: "Profile → Access tokens. Tick api scope." },
-      gitee:      { label: "Personal Access Token",       url: "https://gitee.com/profile/personal_access_tokens", hint: "用户中心 → 个人访问令牌。" },
-      notion:     { label: "Internal Integration Token",  url: "https://www.notion.so/my-integrations", hint: "Create a new internal integration, copy its secret. Then share each page/db with that integration." },
-      slack:      { label: "Bot User OAuth Token",        url: "https://api.slack.com/apps", hint: "Create an app → OAuth & Permissions → install to workspace → copy 'Bot User OAuth Token' (xoxb-…)." },
-      linear:     { label: "Personal API Key",            url: "https://linear.app/settings/api", hint: "Settings → API → Create new key." },
-      jira:       { label: "API Token",                   url: "https://id.atlassian.com/manage-profile/security/api-tokens", hint: "Atlassian account → Security → API tokens." },
-      confluence: { label: "API Token",                   url: "https://id.atlassian.com/manage-profile/security/api-tokens", hint: "Same as Jira — uses your Atlassian token." },
-      trello:     { label: "API Key",                     url: "https://trello.com/app-key", hint: "Trello App Key page — copy the Key." },
-      asana:      { label: "Personal Access Token",       url: "https://app.asana.com/0/my-apps", hint: "Settings → Apps → Personal access tokens." },
-      monday:     { label: "API Token",                   url: "https://monday.com/developers/v2", hint: "Avatar menu → Developers → API." },
-      hubspot:    { label: "Private App Token",           url: "https://app.hubspot.com/private-apps/", hint: "Settings → Integrations → Private Apps → Create." },
-      airtable:   { label: "Personal Access Token",       url: "https://airtable.com/create/tokens", hint: "Token must be granted access to your bases." },
-      stripe:     { label: "Secret Key",                  url: "https://dashboard.stripe.com/apikeys", hint: "Use a restricted key in test mode first." },
-      shopify:    { label: "Admin API Token",             url: "https://admin.shopify.com/", hint: "Apps → Develop apps → Configure Admin API scopes → Install." },
-      telegram:   { label: "Bot Token",                   url: "https://t.me/BotFather", hint: "Talk to @BotFather → /newbot → copy the token." },
-      discord:    { label: "Bot Token",                   url: "https://discord.com/developers/applications", hint: "Create application → Bot → Reset Token." },
-      teams:      { label: "Incoming Webhook URL",        url: "https://learn.microsoft.com/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook", hint: "Channel → Connectors → Incoming Webhook → copy URL." },
-      zoom:       { label: "Server-to-Server credentials", url: "https://marketplace.zoom.us/develop/create", hint: "Create a Server-to-Server OAuth app. Paste 3 lines — see Advanced." },
-      twitter:    { label: "Bearer Token",                url: "https://developer.twitter.com/en/portal/projects-and-apps", hint: "Project → Keys and tokens → Bearer Token." },
-      sendgrid:   { label: "API Key",                     url: "https://app.sendgrid.com/settings/api_keys", hint: "Settings → API Keys → Full Access." },
-      mailchimp:  { label: "API Key",                     url: "https://us1.admin.mailchimp.com/account/api/", hint: "Account → Extras → API keys." },
-      twilio:     { label: "Auth Token",                  url: "https://console.twilio.com/", hint: "Console homepage → Account info → Auth Token." },
-      sentry:     { label: "Auth Token",                  url: "https://sentry.io/settings/account/api/auth-tokens/", hint: "Settings → API → Auth Tokens." },
-      feishu:     { label: "App ID + App Secret",         url: "https://open.feishu.cn/app", hint: "Open Platform → 创建应用. Paste two lines (see Advanced)." },
-      dingtalk:   { label: "Webhook URL",                 url: "https://open-dev.dingtalk.com/fe/app", hint: "群机器人 → 添加 → Webhook 地址。" },
-      wecom:      { label: "Webhook URL",                 url: "https://work.weixin.qq.com/", hint: "群聊 → 群机器人 → 添加 → 复制 Webhook 地址。" },
-      weixin:     { label: "App ID + App Secret",         url: "https://mp.weixin.qq.com/", hint: "公众平台 → 开发 → 基本配置. Paste two lines (see Advanced)." },
-      weibo:      { label: "Access Token",                url: "https://open.weibo.com/", hint: "微博开放平台 → 应用管理 → 高级信息 → access_token。" },
-      yuque:      { label: "Personal Token",              url: "https://www.yuque.com/settings/tokens", hint: "设置 → Token。" },
-      amap:       { label: "Web Service Key",             url: "https://console.amap.com/dev/key/app", hint: "高德开放平台 → 应用管理 → Web服务 类型的 Key。" },
-    },
-
     helpExamples: [
       { kind: "shell",        text: "git status this folder and summarise what changed",
         note: "Uses shell.exec — runs from the folder where automate started." },
@@ -1083,15 +1048,9 @@ document.addEventListener("alpine:init", () => {
     // ---- integrations ----
     openIntegration(i) {
       this.editingIntegration = i;
-      const meta = i.metadata || {};
-      this.integrationForm = {
-        token: "",
-        client_id: meta.client_id || "",
-        client_secret: "",
-      };
+      this.integrationForm = { token: "" };
       this.connectResult = null;
       this.connecting = false;
-      this.showOAuthAdvanced = false;
     },
     closeIntegrationModal() {
       this.editingIntegration = null;
@@ -1116,23 +1075,65 @@ document.addEventListener("alpine:init", () => {
         this.connecting = false;
       }
     },
-    async saveOAuthApp() {
-      const id = this.editingIntegration.id;
-      await api(`/api/integrations/${id}/oauth-app`, "POST", {
-        client_id: this.integrationForm.client_id,
-        client_secret: this.integrationForm.client_secret,
-      });
-      await this.loadIntegrations();
-    },
+
+    // Open the OAuth popup and listen for the success postMessage from
+    // the callback page. The popup runs window.opener.postMessage() after
+    // the token is stored, so by the time we hear back the connections
+    // table already has the new row — we just need to refresh.
     async beginOAuth() {
-      // Persist credentials first (in case the user typed without clicking Save).
-      if (this.integrationForm.client_id && this.integrationForm.client_secret) {
-        await this.saveOAuthApp();
-      }
       const id = this.editingIntegration.id;
-      const r = await api(`/api/integrations/${id}/connect`);
-      window.open(r.authorize_url, "_blank", "width=600,height=720");
+      this.connecting = true;
+      this.connectResult = null;
+      let r;
+      try {
+        r = await api(`/api/integrations/${id}/connect`);
+      } catch (e) {
+        this.connecting = false;
+        // 503 typically means the broker is unreachable. Surface a
+        // clear pointer to the API-key fallback rather than leaving the
+        // user staring at a stack trace.
+        const fallbackHint = this.editingIntegration?.token_help
+          ? " You can paste an API key below as a fallback."
+          : "";
+        this.connectResult = { ok: false, message: (e.message || "couldn't start OAuth") + fallbackHint };
+        return;
+      }
+      const popup = window.open(r.authorize_url, "automate-oauth", "width=560,height=720");
+      if (!popup) {
+        this.connecting = false;
+        this.connectResult = { ok: false, message: "Browser blocked the popup. Allow popups for this site and try again." };
+        return;
+      }
+      // The callback page postMessages back. We bind a one-shot listener.
+      const onMessage = async (ev) => {
+        if (ev.origin !== window.location.origin) return;
+        const m = ev.data || {};
+        if (m.kind !== "automate-oauth" || m.provider !== id) return;
+        window.removeEventListener("message", onMessage);
+        clearInterval(closedPoll);
+        this.connecting = false;
+        if (m.ok) {
+          await Promise.all([this.loadIntegrations(), this.loadTools(), this.refreshStatus()]);
+          this.connectResult = { ok: true, message: "Authorized. The provider's tools are now available." };
+          setTimeout(() => this.closeIntegrationModal(), 1200);
+        } else {
+          this.connectResult = { ok: false, message: m.message || "Authorization failed." };
+        }
+      };
+      window.addEventListener("message", onMessage);
+      // If the user closes the popup without finishing, stop spinning.
+      const closedPoll = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(closedPoll);
+          window.removeEventListener("message", onMessage);
+          if (this.connecting) {
+            this.connecting = false;
+            this.connectResult = { ok: false, message: "Popup closed before authorization completed." };
+          }
+        }
+      }, 800);
     },
+
     async disconnect() {
       const id = this.editingIntegration.id;
       await api(`/api/integrations/${id}/disconnect`, "POST");

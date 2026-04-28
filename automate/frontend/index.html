@@ -805,71 +805,93 @@
         </div>
       </template>
 
-      <!-- Integration modal — paste once, save, done. OAuth hidden behind Advanced. -->
+      <!-- Integration modal -->
+      <!-- For OAuth providers: ONE big "Authorize with X" button. -->
+      <!-- For API-key providers: ONE big "Open token page" deep link + a paste field. -->
       <div x-show="editingIntegration" x-transition.opacity class="fixed inset-0 bg-black/30 sm:grid sm:place-items-center z-20" @click.self="closeIntegrationModal()">
         <div class="bg-white sm:rounded-xl sm:shadow-xl w-full sm:max-w-md p-4 sm:p-6 max-h-[100vh] overflow-y-auto">
-          <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-semibold" x-text="editingIntegration?.display_name"></h2>
             <button @click="closeIntegrationModal()" class="text-zinc-400 hover:text-zinc-700">×</button>
           </div>
 
-          <p class="text-xs text-zinc-500 mb-3">
-            <span x-text="(integrationHints[editingIntegration?.id]?.label || 'API key') + '.'"></span>
-            autoMate encrypts the value on disk.
-          </p>
-
-          <!-- Per-integration guide block -->
-          <div x-show="integrationHints[editingIntegration?.id]"
-               class="bg-blue-50 border border-blue-200 rounded-md p-3 mb-3 text-xs text-blue-900">
-            <div class="font-medium mb-1" x-text="'How to get this:'"></div>
-            <div class="leading-relaxed" x-text="integrationHints[editingIntegration?.id]?.hint"></div>
-            <a x-show="integrationHints[editingIntegration?.id]?.url"
-               :href="integrationHints[editingIntegration?.id]?.url" target="_blank"
-               class="mt-2 inline-block underline text-blue-700">
-              Open the page →
-            </a>
-          </div>
-
-          <!-- Token paste — single field -->
-          <input type="password" x-model="integrationForm.token"
-                 :placeholder="integrationHints[editingIntegration?.id]?.label || 'paste here'"
-                 class="w-full border rounded-md px-2 py-2 font-mono text-xs" />
-
-          <button @click="connectApiKey()" :disabled="connecting"
-                  class="w-full mt-3 bg-zinc-900 text-white rounded-md px-3 py-2.5 text-sm font-medium disabled:opacity-50">
-            <span x-show="!connecting">Save and connect</span>
-            <span x-show="connecting">Saving…</span>
-          </button>
-
-          <!-- OAuth flow tucked under Advanced for the providers that support it -->
-          <div x-show="editingIntegration?.auth === 'oauth'" class="mt-4">
-            <button @click="showOAuthAdvanced = !showOAuthAdvanced"
-                    class="text-xs text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1">
-              <span x-text="showOAuthAdvanced ? '▾' : '▸'"></span>
-              Use OAuth instead (advanced)
-            </button>
-            <div x-show="showOAuthAdvanced" x-cloak class="mt-2 bg-zinc-50 border rounded-md p-3 space-y-2">
-              <p class="text-[11px] text-zinc-600 leading-relaxed">
-                Register an OAuth app first (your own — autoMate runs locally so
-                we can't share one). Paste the client_id/secret, then Authorize.
+          <!-- ============ OAuth path ============ -->
+          <template x-if="editingIntegration?.auth === 'oauth'">
+            <div>
+              <p class="text-xs text-zinc-500 leading-relaxed mb-3">
+                One click — autoMate opens a popup, you approve in
+                <span x-text="editingIntegration?.display_name"></span>'s page,
+                we get the access token. No API keys to copy or paste.
               </p>
-              <input x-model="integrationForm.client_id" placeholder="client_id"
-                     class="w-full border rounded-md px-2 py-1 font-mono text-[11px]" />
-              <input type="password" x-model="integrationForm.client_secret"
-                     placeholder="client_secret"
-                     class="w-full border rounded-md px-2 py-1 font-mono text-[11px]" />
-              <div class="flex justify-between items-center">
-                <a class="text-[11px] text-blue-600 underline" target="_blank"
-                   :href="integrationHints[editingIntegration?.id]?.url">
-                  Where to register an OAuth app →
-                </a>
-                <button @click="saveOAuthApp()" class="text-[11px] border rounded-md px-2 py-1 hover:bg-white">Save app creds</button>
+
+              <!-- Flow badge: PKCE = direct, broker = via cloud broker -->
+              <div class="text-[10px] uppercase tracking-wider text-zinc-400 mb-2">
+                <span x-show="editingIntegration?.oauth_flow === 'pkce'">Direct OAuth · no broker</span>
+                <span x-show="editingIntegration?.oauth_flow === 'broker'">via OAuth broker (handles client_secret)</span>
               </div>
-              <button @click="beginOAuth()" class="w-full bg-blue-600 text-white rounded-md px-2 py-1.5 text-xs">
-                Authorize via <span x-text="editingIntegration?.display_name"></span>
+
+              <button @click="beginOAuth()" :disabled="connecting"
+                      class="w-full bg-zinc-900 text-white rounded-md px-3 py-3 text-sm font-medium disabled:opacity-50">
+                <span x-show="!connecting">Authorize with <span x-text="editingIntegration?.display_name"></span></span>
+                <span x-show="connecting">Waiting for popup…</span>
               </button>
+
+              <!-- API-key fallback for the broker flow when broker is unreachable -->
+              <details class="mt-4 text-xs" x-show="editingIntegration?.token_help">
+                <summary class="cursor-pointer text-zinc-500 hover:text-zinc-900">
+                  Or paste an API key instead (fallback)
+                </summary>
+                <div class="mt-3 space-y-2">
+                  <p class="text-[11px] text-zinc-500 leading-relaxed"
+                     x-text="editingIntegration?.token_help?.hint"></p>
+                  <a :href="editingIntegration?.token_help?.url" target="_blank"
+                     class="block w-full text-center bg-white border rounded-md px-3 py-2 text-xs hover:bg-zinc-50">
+                    Open token page →
+                  </a>
+                  <input type="password" x-model="integrationForm.token"
+                         :placeholder="editingIntegration?.token_help?.label || 'paste token here'"
+                         class="w-full border rounded-md px-2 py-2 font-mono text-xs" />
+                  <button @click="connectApiKey()" :disabled="connecting"
+                          class="w-full bg-zinc-900 text-white rounded-md px-3 py-2 text-xs disabled:opacity-50">
+                    <span x-show="!connecting">Save and connect</span>
+                    <span x-show="connecting">Saving…</span>
+                  </button>
+                </div>
+              </details>
             </div>
-          </div>
+          </template>
+
+          <!-- ============ API-key path ============ -->
+          <template x-if="editingIntegration?.auth === 'apikey'">
+            <div>
+              <p class="text-xs text-zinc-500 leading-relaxed mb-3">
+                <span x-text="editingIntegration?.token_help?.label || 'API key'"></span>.
+                Click the link below — opens the exact page with the right
+                scopes pre-selected. Generate, copy, paste here.
+              </p>
+
+              <a x-show="editingIntegration?.token_help"
+                 :href="editingIntegration?.token_help?.url" target="_blank"
+                 class="block w-full text-center bg-blue-600 text-white rounded-md px-3 py-2.5 text-sm font-medium hover:bg-blue-700">
+                Open <span x-text="editingIntegration?.display_name"></span> token page →
+              </a>
+              <p x-show="editingIntegration?.token_help?.hint"
+                 class="text-[11px] text-zinc-500 leading-relaxed mt-2"
+                 x-text="editingIntegration?.token_help?.hint"></p>
+
+              <div class="mt-4">
+                <label class="block text-xs text-zinc-500 mb-1">Paste here</label>
+                <input type="password" x-model="integrationForm.token"
+                       :placeholder="editingIntegration?.token_help?.label || 'paste here'"
+                       class="w-full border rounded-md px-2 py-2 font-mono text-xs" />
+                <button @click="connectApiKey()" :disabled="connecting"
+                        class="w-full mt-2 bg-zinc-900 text-white rounded-md px-3 py-2.5 text-sm font-medium disabled:opacity-50">
+                  <span x-show="!connecting">Save and connect</span>
+                  <span x-show="connecting">Saving…</span>
+                </button>
+              </div>
+            </div>
+          </template>
 
           <!-- Inline result -->
           <div x-show="connectResult" class="mt-3 text-xs p-3 rounded-md whitespace-pre-wrap"
