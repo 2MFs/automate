@@ -96,10 +96,6 @@
                     class="text-xs border rounded-md px-3 py-2 hover:bg-zinc-50">
               Skip
             </button>
-            <button @click="dismissWelcome(false); active='connect'"
-                    class="text-xs border rounded-md px-3 py-2 hover:bg-zinc-50">
-              Just give me the snippet
-            </button>
             <button @click="dismissWelcome(true)"
                     class="text-xs bg-zinc-900 text-white rounded-md px-4 py-2">
               Walk me through setup →
@@ -231,9 +227,9 @@
                   class="bg-zinc-900 text-white text-sm px-4 py-2 rounded-md">
             Open the chat →
           </button>
-          <button @click="closeWizard(); active='connect'"
+          <button @click="closeWizard(); active='bots'"
                   class="bg-white border text-sm px-4 py-2 rounded-md hover:bg-zinc-50">
-            Connect another AI (Claude Code, Kimi, …)
+            Use from WeChat (OpenClaw)
           </button>
           <button @click="closeWizard(); active='integrations'"
                   class="bg-white border text-sm px-4 py-2 rounded-md hover:bg-zinc-50">
@@ -339,10 +335,10 @@
             text below and paste it into the client (or into another AI and
             ask it to set up for you).
           </p>
-          <button @click="copyConnectInstructions()"
+          <button @click="copyInstallText()"
                   class="w-full bg-zinc-900 text-white text-sm py-2 rounded-md mb-2">
-            <span x-show="!connectCopied">📋 Copy install text (all clients)</span>
-            <span x-show="connectCopied">✓ Copied!</span>
+            <span x-show="!installCopied">📋 Copy install text (all clients)</span>
+            <span x-show="installCopied">✓ Copied!</span>
           </button>
           <details class="text-[11px] text-zinc-500">
             <summary class="cursor-pointer">Show connection details</summary>
@@ -547,14 +543,14 @@
         <div class="text-2xl">→</div>
       </button>
 
-      <!-- Power-user path: hand autoMate to an external AI -->
-      <button @click="active = 'connect'"
+      <!-- Talk to autoMate from WeChat / Telegram via OpenClaw -->
+      <button @click="active = 'bots'"
               class="w-full bg-white border rounded-2xl p-4 text-left hover:border-zinc-400 transition flex items-center gap-4">
-        <div class="text-2xl">🔌</div>
+        <div class="text-2xl">💬</div>
         <div class="flex-1 min-w-0">
-          <div class="font-semibold text-sm">Use autoMate from Claude Code / Cursor / Cline / Kimi</div>
+          <div class="font-semibold text-sm">Use autoMate from WeChat / Telegram</div>
           <div class="text-[11px] text-zinc-500 leading-snug mt-0.5">
-            Copy one install text, paste it into your AI client. autoMate becomes its tool source.
+            Plug in via OpenClaw — chat with your warehouse from your phone keyboard.
           </div>
         </div>
         <div class="text-zinc-400">→</div>
@@ -584,11 +580,11 @@
             <div class="text-sm font-medium mt-1">Set reminder</div>
             <div class="text-[11px] text-zinc-500">Push to your phone</div>
           </button>
-          <button @click="active = 'connect'"
+          <button @click="active = 'bots'"
                   class="bg-white border rounded-lg p-4 text-left hover:border-zinc-400">
-            <div class="text-2xl">🔌</div>
-            <div class="text-sm font-medium mt-1">Get AI snippet</div>
-            <div class="text-[11px] text-zinc-500">Wire into your AI</div>
+            <div class="text-2xl">💬</div>
+            <div class="text-sm font-medium mt-1">Connect a channel</div>
+            <div class="text-[11px] text-zinc-500">WeChat / Telegram via OpenClaw</div>
           </button>
         </div>
       </div>
@@ -1110,62 +1106,231 @@
       </div>
     </section>
 
-    <!-- ============ BOTS ============ -->
+    <!-- ============ BOTS — WeChat / Telegram via OpenClaw ============ -->
     <section x-show="active === 'bots'">
       <div class="mb-4">
         <h1 class="text-xl sm:text-2xl font-semibold">Bots</h1>
-        <p class="text-sm text-zinc-500 mt-1">
-          Connect autoMate to messaging apps. Type in Telegram or 微信,
-          and the same agent that runs the Chat tab answers — your notes,
-          files, tools, all from your phone keyboard.
+        <p class="text-sm text-zinc-500 mt-1 leading-relaxed">
+          Talk to autoMate from your phone — WeChat (微信), Telegram, etc.
+          The recommended path is
+          <a href="https://github.com/openclaw/openclaw" target="_blank" class="underline">OpenClaw</a>:
+          it owns the IM side, autoMate plugs in as the tool source.
         </p>
       </div>
 
       <div x-show="storageMode === 'local'" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs sm:text-sm text-amber-900 mb-4">
-        ⚠ Bots run on the hub. Local-only mode can't expose them; connect this device to a hub to use Bots.
+        ⚠ Channels run on the hub. Local-only mode can't expose them; connect this device to a hub first.
       </div>
 
-      <div x-show="storageMode === 'connected'" class="space-y-3">
-        <template x-for="b in botCatalog" :key="b.id">
-          <div class="bg-white border rounded-xl p-4">
-            <div class="flex items-start justify-between gap-3 mb-2">
-              <div class="min-w-0 flex-1">
-                <div class="font-semibold text-sm sm:text-base flex items-center gap-2 flex-wrap">
-                  <span x-text="b.label"></span>
-                  <span class="text-[10px] px-1.5 py-0.5 rounded"
-                        :class="{
-                          'bg-emerald-100 text-emerald-700': botInstance(b.id).enabled && botInstance(b.id).status === 'running',
-                          'bg-blue-100 text-blue-700':       botInstance(b.id).enabled && botInstance(b.id).status === 'ready',
-                          'bg-zinc-100 text-zinc-500':       !botInstance(b.id).enabled && botInstance(b.id).status === 'stopped',
-                          'bg-red-100 text-red-700':         botInstance(b.id).status === 'error'
-                        }"
-                        x-text="botInstance(b.id).status"></span>
-                </div>
-                <div class="text-xs text-zinc-500 leading-relaxed mt-1" x-text="b.description"></div>
-                <div x-show="b.risks" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 mt-2"
-                     x-text="'⚠ ' + b.risks"></div>
-              </div>
-              <button @click="openBot(b.id)" class="text-xs border rounded-md px-2 py-1 hover:bg-zinc-50 flex-shrink-0">
-                <span x-text="botInstance(b.id).config_set ? 'Edit' : 'Set up'"></span>
-              </button>
-            </div>
-            <div x-show="botInstance(b.id).config_set" class="flex gap-2 pt-2 border-t">
-              <button x-show="!botInstance(b.id).enabled" @click="toggleBot(b.id)" :disabled="botBusy"
-                      class="text-xs bg-zinc-900 text-white rounded-md px-3 py-1.5">
-                Start
-              </button>
-              <button x-show="botInstance(b.id).enabled" @click="toggleBot(b.id)" :disabled="botBusy"
-                      class="text-xs border rounded-md px-3 py-1.5 hover:bg-zinc-50">
-                Stop
-              </button>
-              <span x-show="botInstance(b.id).last_error" class="text-xs text-red-600 leading-snug self-center"
-                    x-text="botInstance(b.id).last_error"></span>
+      <!-- Primary path: WeChat via OpenClaw -->
+      <div x-show="storageMode === 'connected'" class="space-y-4">
+
+        <!-- Hero card -->
+        <div class="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 sm:p-5">
+          <div class="flex items-start gap-3">
+            <div class="text-3xl">💬</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[10px] uppercase tracking-wider text-emerald-700 font-medium">Recommended</div>
+              <h2 class="font-semibold text-base sm:text-lg leading-tight">微信 AI 助手 via OpenClaw</h2>
+              <p class="text-xs sm:text-sm text-zinc-600 leading-relaxed mt-1">
+                OpenClaw is a separate process that handles WeChat / Telegram / Slack / Discord / iMessage etc.
+                You point its <code class="bg-white border px-1 rounded text-[11px]">bundle-mcp</code> plugin at autoMate's MCP endpoint, and the agent
+                running OpenClaw reaches into your warehouse (notes, files, reminders, tools) when it answers.
+              </p>
             </div>
           </div>
-        </template>
+        </div>
+
+        <!-- Step 1: install OpenClaw + WeChat plugin -->
+        <div class="bg-white border rounded-xl p-4">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full bg-zinc-900 text-white grid place-items-center font-bold flex-shrink-0 text-xs">1</div>
+            <div class="min-w-0 flex-1">
+              <div class="font-semibold text-sm">Install OpenClaw + the WeChat plugin</div>
+              <p class="text-xs text-zinc-500 leading-relaxed mt-1 mb-2">
+                OpenClaw runs on your laptop / NAS alongside autoMate. The
+                WeChat channel is a separately-installed plugin maintained by
+                <a href="https://github.com/freestylefly/openclaw-wechat" target="_blank" class="underline">freestylefly/openclaw-wechat</a>.
+              </p>
+              <pre class="bg-zinc-900 text-zinc-100 rounded-md text-[11px] sm:text-xs p-3 overflow-x-auto"><code># Install OpenClaw — see openclaw.ai docs for your OS
+openclaw onboard --install-daemon
+
+# Install the WeChat channel plugin
+openclaw plugins install @canghe/openclaw-wechat</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: register autoMate as a tool source -->
+        <div class="bg-white border rounded-xl p-4">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full bg-zinc-900 text-white grid place-items-center font-bold flex-shrink-0 text-xs">2</div>
+            <div class="min-w-0 flex-1">
+              <div class="font-semibold text-sm">Register autoMate as a tool source</div>
+              <p class="text-xs text-zinc-500 leading-relaxed mt-1 mb-2">
+                Drop this block into <code class="bg-zinc-100 px-1 rounded text-[11px]">~/.openclaw/openclaw.json5</code>.
+                URL + token are pre-filled for this hub.
+              </p>
+              <div x-show="!installInfo" class="text-[11px] text-zinc-400 italic">Loading connection details…</div>
+              <div x-show="installInfo">
+                <pre class="bg-zinc-900 text-zinc-100 rounded-md text-[11px] sm:text-xs p-3 overflow-x-auto" x-text="openclawConfigSnippet"></pre>
+                <div class="flex gap-2 mt-2">
+                  <button @click="copyOpenclawSnippet()"
+                          class="flex-1 bg-zinc-900 text-white text-xs sm:text-sm py-2 rounded-md font-medium">
+                    <span x-show="!openclawSnippetCopied">📋 Copy OpenClaw config</span>
+                    <span x-show="openclawSnippetCopied">✓ Copied!</span>
+                  </button>
+                  <button @click="copyInstallText()"
+                          class="text-xs border rounded-md px-3 py-2 hover:bg-zinc-50"
+                          title="Full setup markdown — also covers Claude Desktop, Cursor, etc.">
+                    <span x-show="!installCopied">All clients</span>
+                    <span x-show="installCopied">✓</span>
+                  </button>
+                </div>
+                <details class="mt-2">
+                  <summary class="text-[11px] text-zinc-500 cursor-pointer">Show URL + token</summary>
+                  <div class="space-y-2 mt-2 text-[11px]">
+                    <div>
+                      <div class="text-zinc-500">MCP URL</div>
+                      <div class="flex gap-1">
+                        <input :value="installInfo?.mcp_url || ''" readonly
+                               class="flex-1 bg-zinc-50 border rounded px-2 py-1 font-mono text-[11px]" />
+                        <button @click="copyMcpUrl()" class="border rounded px-2 hover:bg-zinc-50">
+                          <span x-show="!mcpUrlCopied">Copy</span><span x-show="mcpUrlCopied">✓</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-zinc-500">Bearer token</div>
+                      <div class="flex gap-1">
+                        <input :value="installInfo?.token || ''" readonly
+                               :type="bridgeTokenShown ? 'text' : 'password'"
+                               class="flex-1 bg-zinc-50 border rounded px-2 py-1 font-mono text-[11px]" />
+                        <button @click="bridgeTokenShown = !bridgeTokenShown"
+                                class="border rounded px-2 hover:bg-zinc-50"
+                                x-text="bridgeTokenShown ? 'Hide' : 'Show'"></button>
+                        <button @click="copyMcpToken()" class="border rounded px-2 hover:bg-zinc-50">
+                          <span x-show="!mcpTokenCopied">Copy</span><span x-show="mcpTokenCopied">✓</span>
+                        </button>
+                      </div>
+                      <button @click="regenerateBridgeToken()" class="text-[11px] text-red-600 hover:underline mt-1">
+                        Regenerate (existing bots stop working)
+                      </button>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: configure WeChat channel -->
+        <div class="bg-white border rounded-xl p-4">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full bg-zinc-900 text-white grid place-items-center font-bold flex-shrink-0 text-xs">3</div>
+            <div class="min-w-0 flex-1">
+              <div class="font-semibold text-sm">Configure the WeChat channel</div>
+              <p class="text-xs text-zinc-500 leading-relaxed mt-1 mb-2">
+                openclaw-wechat needs a paid proxy + apiKey from its provider.
+                See the upstream README for current pricing / contact.
+              </p>
+              <pre class="bg-zinc-900 text-zinc-100 rounded-md text-[11px] sm:text-xs p-3 overflow-x-auto"><code>openclaw config set channels.wechat.apiKey "wc_live_xxxxxxxxxxxxxxxx"
+openclaw config set channels.wechat.proxyUrl "http://your-proxy:3000"
+openclaw config set channels.wechat.webhookHost "your-server-ip"
+openclaw config set channels.wechat.enabled true</code></pre>
+              <a href="https://github.com/freestylefly/openclaw-wechat" target="_blank"
+                 class="text-xs text-blue-600 underline mt-2 inline-block">
+                openclaw-wechat README →
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: scan QR + start chatting -->
+        <div class="bg-white border rounded-xl p-4">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full bg-zinc-900 text-white grid place-items-center font-bold flex-shrink-0 text-xs">4</div>
+            <div class="min-w-0 flex-1">
+              <div class="font-semibold text-sm">Start the gateway, scan the QR</div>
+              <pre class="bg-zinc-900 text-zinc-100 rounded-md text-[11px] sm:text-xs p-3 overflow-x-auto mt-2"><code>openclaw gateway start</code></pre>
+              <p class="text-xs text-zinc-500 leading-relaxed mt-2">
+                A QR code prints to the terminal. Open WeChat → Discover → Scan, then
+                accept the login. Once paired, message your own WeChat: any
+                personal-data question (notes, files, schedule, reminders) flows
+                <em>WeChat → OpenClaw → autoMate MCP → your warehouse</em>.
+              </p>
+              <p class="text-xs text-zinc-500 leading-relaxed mt-2">
+                Bias the OpenClaw agent toward autoMate by adding to its
+                system prompt:
+                <em>"Prefer the <code class="bg-zinc-100 px-1 rounded">automate</code>
+                tool for finding the user's notes, files, schedule, and personal data."</em>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other channels — Telegram, Slack etc. via the same OpenClaw config -->
+        <div class="bg-zinc-50 border rounded-xl p-4 text-xs text-zinc-600 leading-relaxed">
+          <strong>Other channels</strong> — OpenClaw also speaks Telegram, Slack,
+          Discord, Signal, iMessage. Same step-2 config (autoMate as MCP server)
+          applies. Step 3 changes per channel — see the OpenClaw plugin
+          registry for setup commands.
+        </div>
+
+        <!-- Legacy: direct platform webhooks (the old bots) -->
+        <details class="bg-white border rounded-xl">
+          <summary class="cursor-pointer p-4 text-sm font-medium hover:bg-zinc-50">
+            Direct platform webhooks (advanced / legacy)
+          </summary>
+          <div class="p-4 border-t space-y-3">
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              autoMate's older built-in bots talk directly to the platform's
+              official webhooks (no OpenClaw). Useful when you can't run
+              OpenClaw or you only want a single channel. Each platform has
+              its own quirks — read the docs link before enabling.
+            </p>
+            <template x-for="b in botCatalog" :key="b.id">
+              <div class="border rounded-lg p-3">
+                <div class="flex items-start justify-between gap-3 mb-1">
+                  <div class="min-w-0 flex-1">
+                    <div class="font-medium text-sm flex items-center gap-2 flex-wrap">
+                      <span x-text="b.label"></span>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded"
+                            :class="{
+                              'bg-emerald-100 text-emerald-700': botInstance(b.id).enabled && botInstance(b.id).status === 'running',
+                              'bg-blue-100 text-blue-700':       botInstance(b.id).enabled && botInstance(b.id).status === 'ready',
+                              'bg-zinc-100 text-zinc-500':       !botInstance(b.id).enabled && botInstance(b.id).status === 'stopped',
+                              'bg-red-100 text-red-700':         botInstance(b.id).status === 'error'
+                            }"
+                            x-text="botInstance(b.id).status"></span>
+                    </div>
+                    <div class="text-xs text-zinc-500 leading-relaxed mt-1" x-text="b.description"></div>
+                    <div x-show="b.risks" class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2 mt-2"
+                         x-text="'⚠ ' + b.risks"></div>
+                  </div>
+                  <button @click="openBot(b.id)" class="text-xs border rounded-md px-2 py-1 hover:bg-zinc-50 flex-shrink-0">
+                    <span x-text="botInstance(b.id).config_set ? 'Edit' : 'Set up'"></span>
+                  </button>
+                </div>
+                <div x-show="botInstance(b.id).config_set" class="flex gap-2 pt-2 border-t mt-2">
+                  <button x-show="!botInstance(b.id).enabled" @click="toggleBot(b.id)" :disabled="botBusy"
+                          class="text-xs bg-zinc-900 text-white rounded-md px-3 py-1.5">
+                    Start
+                  </button>
+                  <button x-show="botInstance(b.id).enabled" @click="toggleBot(b.id)" :disabled="botBusy"
+                          class="text-xs border rounded-md px-3 py-1.5 hover:bg-zinc-50">
+                    Stop
+                  </button>
+                  <span x-show="botInstance(b.id).last_error" class="text-xs text-red-600 leading-snug self-center"
+                        x-text="botInstance(b.id).last_error"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </details>
       </div>
 
-      <!-- Bot config modal -->
+      <!-- Bot config modal (legacy direct-webhook bots) -->
       <div x-show="activeBotId" x-cloak x-transition.opacity
            class="fixed inset-0 bg-black/30 sm:grid sm:place-items-center z-20" @click.self="closeBot()">
         <div class="bg-white sm:rounded-xl sm:shadow-xl w-full sm:max-w-md p-4 sm:p-6 max-h-screen overflow-y-auto">
@@ -1200,15 +1365,6 @@
                :class="botResult?.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'">
             <span x-text="(botResult?.ok ? '✓ ' : '✕ ') + botResult?.message"></span>
           </div>
-          <p x-show="activeBotId === 'wechat_oa' || activeBotId === 'wecom'"
-             class="text-xs text-zinc-500 mt-4 leading-relaxed border-t pt-3">
-            Webhook URL for the platform's backend:
-            <code class="bg-zinc-100 px-1 py-0.5 rounded text-[11px] block mt-1 break-all"
-                  x-text="(connectInfo?.base_url || '<your-public-url>') + '/api/bots/' + activeBotId + '/webhook'"></code>
-            <span class="text-amber-700">Needs to be reachable from the public internet</span> —
-            run autoMate behind a tunnel (ngrok / Cloudflare Tunnel / our relay) or
-            on a public host.
-          </p>
         </div>
       </div>
     </section>
@@ -1240,7 +1396,7 @@
             <div class="mt-3 text-xs text-zinc-500">
               <button @click="active = 'help'" class="hover:text-zinc-900 underline">What is this thing?</button>
               <span class="mx-1">·</span>
-              <button @click="active = 'connect'" class="hover:text-zinc-900 underline">Use from a different AI</button>
+              <button @click="active = 'bots'" class="hover:text-zinc-900 underline">Use from WeChat (OpenClaw)</button>
             </div>
           </div>
         </div>
@@ -1300,130 +1456,6 @@
       </aside>
     </section>
 
-    <!-- ============ CONNECT ANY AI (default landing on phone) ============ -->
-    <section x-show="active === 'connect'">
-
-      <!-- Hero — makes it obvious autoMate is INFRASTRUCTURE for an AI, not a chat -->
-      <div class="bg-gradient-to-br from-zinc-900 to-zinc-700 text-white rounded-xl p-5 sm:p-6 mb-4">
-        <div class="text-xl sm:text-2xl font-bold mb-1">Plug autoMate into your AI</div>
-        <p class="text-zinc-300 text-xs sm:text-sm leading-relaxed">
-          Pick the AI you already use. Copy the snippet. Paste it once.
-          From then on, your AI can read your notes, drop files, set
-          reminders, and run real tools — all on your machine.
-        </p>
-      </div>
-
-      <!-- Primary path: one giant button copies a per-client install guide
-           with URL + token already filled in. Hand it to your AI assistant
-           or follow it yourself — every popular client is covered. -->
-      <div x-show="installInfo?.markdown" class="bg-white border-2 border-zinc-900 rounded-xl p-4 mb-4">
-        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-1">Recommended</div>
-        <h2 class="font-semibold text-sm sm:text-base mb-2">Copy install text — works for every MCP client</h2>
-        <p class="text-[11px] sm:text-xs text-zinc-600 leading-snug mb-3">
-          One copy → paste into Claude / ChatGPT / Kimi and say "set this up
-          for me", or follow the steps yourself. Includes URL + token + the
-          right config file path for Claude Desktop, Cursor, Cline, OpenClaw,
-          and any other MCP client.
-        </p>
-        <button @click="copyConnectInstructions()"
-                class="w-full bg-zinc-900 text-white text-sm py-3 rounded-lg font-medium">
-          <span x-show="!connectCopied">📋 Copy install text (all clients)</span>
-          <span x-show="connectCopied">✓ Copied — paste into any AI</span>
-        </button>
-        <details class="mt-3">
-          <summary class="text-xs text-zinc-500 cursor-pointer">Show connection details</summary>
-          <div class="mt-2 space-y-2 text-xs">
-            <div>
-              <div class="text-[10px] text-zinc-500">MCP URL</div>
-              <input :value="installInfo?.mcp_url || '...'" readonly
-                     class="w-full bg-zinc-50 border rounded px-2 py-1 text-[11px] font-mono" />
-            </div>
-            <div>
-              <div class="text-[10px] text-zinc-500">Token</div>
-              <div class="flex gap-1">
-                <input :value="installInfo?.token || '...'" readonly
-                       :type="bridgeTokenShown ? 'text' : 'password'"
-                       class="flex-1 bg-zinc-50 border rounded px-2 py-1 text-[11px] font-mono" />
-                <button @click="bridgeTokenShown = !bridgeTokenShown"
-                        class="text-[11px] border rounded px-2 hover:bg-zinc-50"
-                        x-text="bridgeTokenShown ? 'Hide' : 'Show'"></button>
-              </div>
-            </div>
-          </div>
-        </details>
-      </div>
-
-      <!-- Secondary path: per-client picker. For users who just want the
-           one snippet that fits the AI in front of them, without reading
-           the long markdown above. -->
-      <div class="mb-3">
-        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">Or pick a specific client</div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          <template x-for="c in aiClients" :key="c.id">
-            <button @click="pickAiClient(c.id)"
-                    :class="aiClient === c.id ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white hover:border-zinc-400'"
-                    class="border-2 rounded-lg p-3 text-left transition">
-              <div class="text-lg" x-text="c.icon"></div>
-              <div class="text-xs sm:text-sm font-medium leading-tight mt-1" x-text="c.label"></div>
-              <div class="text-[10px] mt-0.5 opacity-70 uppercase" x-text="c.mode"></div>
-            </button>
-          </template>
-        </div>
-      </div>
-
-      <!-- The selected snippet, large and copy-friendly -->
-      <div x-show="connectInfo?.modes?.[aiClientMode]"
-           class="bg-white border rounded-xl overflow-hidden mb-4">
-        <div class="p-4 bg-zinc-50 border-b">
-          <div class="flex items-start justify-between gap-2 mb-2">
-            <div class="min-w-0">
-              <h2 class="font-semibold text-sm sm:text-base" x-text="connectInfo?.modes?.[aiClientMode]?.title"></h2>
-              <p class="text-[11px] sm:text-xs text-zinc-500 mt-0.5 leading-snug" x-text="connectInfo?.modes?.[aiClientMode]?.subtitle"></p>
-            </div>
-          </div>
-          <!-- Per-client "where to put it" — answers the actual user question -->
-          <div x-show="aiClientWhere"
-               class="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3 text-[11px] sm:text-xs text-amber-900 leading-snug">
-            <strong>Where to paste:</strong> <span x-text="aiClientWhere"></span>
-          </div>
-          <button @click="copySnippet(aiClientMode, connectInfo?.modes?.[aiClientMode]?.content + (connectInfo?.modes?.[aiClientMode]?.prompt ? '\n\n' + connectInfo.modes[aiClientMode].prompt : ''))"
-                  class="w-full bg-zinc-900 text-white text-sm py-3 rounded-lg font-medium">
-            <span x-show="copiedKey !== aiClientMode">📋 Copy snippet</span>
-            <span x-show="copiedKey === aiClientMode">✓ Copied — paste it into your AI</span>
-          </button>
-          <p class="text-[11px] sm:text-xs text-zinc-600 mt-3 leading-relaxed" x-text="connectInfo?.modes?.[aiClientMode]?.instructions"></p>
-        </div>
-        <details class="border-t">
-          <summary class="px-4 py-2 text-xs text-zinc-500 cursor-pointer hover:bg-zinc-50">View snippet</summary>
-          <pre class="bg-zinc-900 text-zinc-100 text-[11px] sm:text-xs p-3 overflow-x-auto" x-text="connectInfo?.modes?.[aiClientMode]?.content"></pre>
-          <pre x-show="connectInfo?.modes?.[aiClientMode]?.prompt"
-               class="bg-zinc-800 text-zinc-100 text-[11px] sm:text-xs p-3 overflow-x-auto border-t border-zinc-700"
-               x-text="connectInfo?.modes?.[aiClientMode]?.prompt"></pre>
-        </details>
-      </div>
-
-      <!-- Status hint when local-only -->
-      <div x-show="storageMode === 'local'" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs sm:text-sm text-amber-900">
-        <div class="font-semibold mb-1">⚠ Hub not connected</div>
-        Snippets above point at <code class="bg-white px-1 rounded text-[11px]" x-text="connectInfo?.base_url || '(no hub)'"></code>.
-        Without a hub, the AI has nothing to call. Run autoMate on a real
-        computer (laptop / NAS / Docker), then come back and tap the
-        yellow banner to connect.
-      </div>
-
-      <!-- Security note (collapsed on mobile to save space) -->
-      <details class="text-xs text-zinc-500 leading-relaxed mt-4">
-        <summary class="cursor-pointer hover:text-zinc-700">Privacy &amp; security note</summary>
-        <div class="mt-2 bg-zinc-50 border rounded-lg p-3">
-          autoMate binds to <code class="bg-white border px-1 rounded">127.0.0.1</code>
-          — only processes on this machine can reach the snippets above. They
-          don't work from another device until you bind the server to a public
-          address (<code class="bg-white border px-1 rounded">AUTOMATE_HOST=0.0.0.0</code>)
-          or use the relay. See docs/relay.md.
-        </div>
-      </details>
-    </section>
-
     <!-- ============ HISTORY ============ -->
     <section x-show="active === 'history'">
       <h1 class="text-2xl font-semibold">Run history</h1>
@@ -1464,16 +1496,17 @@
       <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h2 class="font-semibold text-base mb-1">The point: one hub, any AI</h2>
+            <h2 class="font-semibold text-base mb-1">The point: one hub, your channels</h2>
             <p class="text-sm text-zinc-700 leading-relaxed">
-              The chat in this window is just one way to use autoMate. Copy a
-              short snippet, paste it into Claude Code / Kimi / ChatGPT / a
-              local Ollama, and that AI now has hands on your machine.
+              The chat in this window is one way to use autoMate. Plug it into
+              <a href="https://github.com/openclaw/openclaw" target="_blank" class="underline">OpenClaw</a>
+              with the WeChat / Telegram plugin and you can talk to your
+              warehouse from your phone keyboard — same agent, same data.
             </p>
           </div>
-          <button @click="active='connect'"
+          <button @click="active='bots'"
                   class="bg-zinc-900 text-white text-xs px-3 py-2 rounded-md flex-shrink-0">
-            Get the snippet →
+            Set up channels →
           </button>
         </div>
       </div>

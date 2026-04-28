@@ -7,7 +7,6 @@ document.addEventListener("alpine:init", () => {
       { id: "notes",        label: "Notes" },
       { id: "files",        label: "Files" },
       { id: "reminders",    label: "Reminders" },
-      { id: "connect",      label: "Connect AI" },
       { id: "integrations", label: "Tools" },
       { id: "models",       label: "Models" },
       { id: "help",         label: "Help" },
@@ -24,7 +23,6 @@ document.addEventListener("alpine:init", () => {
     moreTabs: [
       { id: "files",        label: "Files",      icon: "📁" },
       { id: "reminders",    label: "Reminders",  icon: "⏰" },
-      { id: "connect",      label: "Connect AI", icon: "🔌" },
       { id: "integrations", label: "Tools",      icon: "🧰" },
       { id: "models",       label: "Models",     icon: "🧠" },
       { id: "help",         label: "Help",       icon: "?" },
@@ -32,48 +30,6 @@ document.addEventListener("alpine:init", () => {
     moreOpen: false,
     settingsOpen: false,
 
-    // Quick "I'm using…" picker on the Connect tab. Each card declares
-    // which transport it can actually speak (so we don't promise MCP to
-    // a client that can't load MCP servers — Kimi Code, ChatGPT web, …)
-    // plus a "where" hint pointing at the specific config file or UI
-    // surface the user has to edit.
-    aiClient: localStorage.getItem("automate-ai-client") || "claude_code",
-    aiClients: [
-      { id: "claude_code", label: "Claude Code",
-        mode: "mcp",   icon: "🧰",
-        where: "Edit ~/.claude/mcp.json (or run `claude mcp add`). Restart Claude Code." },
-      { id: "cursor",      label: "Cursor",
-        mode: "mcp",   icon: "🧰",
-        where: "Edit ~/.cursor/mcp.json. Reload window. Tools show up in Composer." },
-      { id: "cline",       label: "Cline (VS Code)",
-        mode: "mcp",   icon: "🧰",
-        where: "Cline panel → ⚙ → MCP Servers → Edit settings. Reload VS Code." },
-      { id: "kimi_k2",     label: "Kimi K2 (web / API)",
-        mode: "http",  icon: "🌐",
-        where: "Moonshot 工作台 / Kimi 智能体: paste this into the system-prompt field." },
-      { id: "kimi_code",   label: "Kimi Code (CLI)",
-        mode: "bridge", icon: "🐚",
-        where: "Kimi for Coding CLI doesn't load MCP servers. Save the script, then paste the system prompt into your session." },
-      { id: "chatgpt",     label: "ChatGPT custom GPT",
-        mode: "http",  icon: "🌐",
-        where: "ChatGPT → Create a GPT → Instructions field. Or use Actions with the OpenAPI URL." },
-      { id: "ollama",      label: "Ollama / web chat",
-        mode: "bridge",icon: "🐚",
-        where: "Save the script as ~/bin/am, paste the system prompt into your model's prompt." },
-      { id: "other",       label: "Something else",
-        mode: "discover", icon: "📡",
-        where: "Hand the AI the OpenAPI URL — it can discover the surface itself." },
-    ],
-    pickAiClient(id) {
-      this.aiClient = id;
-      localStorage.setItem("automate-ai-client", id);
-    },
-    get aiClientMode() {
-      return this.aiClients.find(c => c.id === this.aiClient)?.mode || "mcp";
-    },
-    get aiClientWhere() {
-      return this.aiClients.find(c => c.id === this.aiClient)?.where || "";
-    },
     active: localStorage.getItem("automate-active-tab") || "home",
     region: "",
     status: null,
@@ -245,12 +201,10 @@ document.addEventListener("alpine:init", () => {
     // ---- v4.5.6: channels bridge ----
     bridgeInfo: null,
     bridgeTokenShown: false,
-    // ---- v4.5.7: connect-instructions copy text ----
-    // Named `installInfo` (not `connectInfo`) because there's a separate
-    // `connectInfo` lower down that holds /api/connect snippet data —
-    // they used to clobber each other.
+    // Install instructions for plugging autoMate into OpenClaw / other
+    // MCP gateways. Loaded by loadBridge() with mcp_url + bearer token.
     installInfo: null,
-    connectCopied: false,
+    installCopied: false,
 
     async loadBridge() {
       try {
@@ -271,18 +225,73 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    async copyConnectInstructions() {
+    async copyInstallText() {
       if (!this.installInfo?.markdown) return;
       try {
         await navigator.clipboard.writeText(this.installInfo.markdown);
-        this.connectCopied = true;
-        setTimeout(() => { this.connectCopied = false; }, 2000);
+        this.installCopied = true;
+        setTimeout(() => { this.installCopied = false; }, 2000);
       } catch (e) {
         this.showNotice({
           icon: "📋", title: "Clipboard blocked",
           body: "Your browser blocked clipboard access. Open the connection details below and copy the URL + token manually.",
         });
       }
+    },
+    async copyText(text) {
+      if (!text) return false;
+      try { await navigator.clipboard.writeText(text); return true; }
+      catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } finally { document.body.removeChild(ta); }
+        return true;
+      }
+    },
+
+    // OpenClaw bundle-mcp config block, ready to drop into
+    // ~/.openclaw/openclaw.json5 — pre-filled with the live MCP URL +
+    // bearer token of this hub. Returns "" until installInfo loads.
+    get openclawConfigSnippet() {
+      if (!this.installInfo?.mcp_url) return "";
+      const url = this.installInfo.mcp_url;
+      const token = this.installInfo.token || "<token>";
+      return [
+        "{",
+        "  plugins: {",
+        "    \"bundle-mcp\": {",
+        "      servers: {",
+        "        automate: {",
+        "          transport: \"streamable-http\",",
+        `          url: "${url}",`,
+        `          headers: { Authorization: "Bearer ${token}" },`,
+        "        },",
+        "      },",
+        "    },",
+        "  },",
+        "}",
+      ].join("\n");
+    },
+    openclawSnippetCopied: false,
+    async copyOpenclawSnippet() {
+      const ok = await this.copyText(this.openclawConfigSnippet);
+      if (!ok) return;
+      this.openclawSnippetCopied = true;
+      setTimeout(() => { this.openclawSnippetCopied = false; }, 2000);
+    },
+    mcpUrlCopied: false,
+    async copyMcpUrl() {
+      const ok = await this.copyText(this.installInfo?.mcp_url || "");
+      if (!ok) return;
+      this.mcpUrlCopied = true;
+      setTimeout(() => { this.mcpUrlCopied = false; }, 2000);
+    },
+    mcpTokenCopied: false,
+    async copyMcpToken() {
+      const ok = await this.copyText(this.installInfo?.token || "");
+      if (!ok) return;
+      this.mcpTokenCopied = true;
+      setTimeout(() => { this.mcpTokenCopied = false; }, 2000);
     },
     async copyBridge(field) {
       if (!this.bridgeInfo?.[field]) return;
@@ -449,8 +458,6 @@ document.addEventListener("alpine:init", () => {
     ws: null,
 
     runs: [],
-    connectInfo: null,
-    copiedKey: null,
     hubBaseInput: "",
 
     // ---- v4.2: smart-NAS local-mode ----
@@ -490,25 +497,6 @@ document.addEventListener("alpine:init", () => {
     },
     get currentHubBase() {
       return localStorage.getItem("automate-hub-base") || "(this server)";
-    },
-
-    async loadConnectInfo() {
-      try { this.connectInfo = await api("/api/connect"); }
-      catch (e) { console.warn(e); }
-    },
-    async copySnippet(key, text) {
-      try {
-        await navigator.clipboard.writeText(text);
-        this.copiedKey = key;
-        setTimeout(() => { if (this.copiedKey === key) this.copiedKey = null; }, 1600);
-      } catch (e) {
-        // Fallback for old browsers
-        const ta = document.createElement("textarea");
-        ta.value = text; document.body.appendChild(ta); ta.select();
-        document.execCommand("copy"); document.body.removeChild(ta);
-        this.copiedKey = key;
-        setTimeout(() => { if (this.copiedKey === key) this.copiedKey = null; }, 1600);
-      }
     },
 
     quickPrompts: [
@@ -732,7 +720,6 @@ document.addEventListener("alpine:init", () => {
         this.loadIntegrations(),
         this.loadTools(),
         this.loadRuns(),
-        this.loadConnectInfo(),
         this.loadNotes(),
         this.loadFiles(),
         this.loadReminders(),

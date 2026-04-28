@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from .. import channels as C
 from ..version import __version__
 from .api import (
-    agent, audio, auth, bots, channels as channels_api, connect, execute,
+    agent, audio, auth, bots, channels as channels_api, execute,
     extension, files, integrations, memory, models, notes, oauth, push,
     reminders, sessions, system, tools as tools_api,
 )
@@ -62,7 +62,6 @@ def create_app() -> FastAPI:
     app.include_router(execute.router,       prefix="/api")
     app.include_router(sessions.router,      prefix="/api")
     app.include_router(extension.router,     prefix="/api")
-    app.include_router(connect.router,       prefix="/api")
     # v5: personal-infra
     app.include_router(notes.router,         prefix="/api")
     app.include_router(files.router,         prefix="/api")

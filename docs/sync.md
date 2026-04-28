@@ -37,7 +37,7 @@ When the SPA loads and `/api/health` doesn't answer, it drops into
 **local mode**:
 
 - Notes and memory are stored in IndexedDB (per-origin)
-- Files, reminders, models, tools, and Connect AI tabs show a "needs hub"
+- Files, reminders, models, tools, and Bots tabs show a "needs hub"
   card; nothing's pretending to work
 - A yellow banner across the top has a hub-URL input + "Sync & connect"
 
