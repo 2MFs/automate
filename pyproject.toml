@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "automate-hub"
-version = "4.5.8"
+version = "4.5.9"
 description = "A smart NAS for AI: notes, files, reminders, memory, and 30+ tools. Plug into any LLM via MCP / HTTP / bridge."
 readme = "README.md"
 requires-python = ">=3.10"
