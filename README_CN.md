@@ -65,7 +65,7 @@ autoMate — 从此**那个客户端**能往你笔记里写、把文件丢进来
 | 独立二进制(Win/Mac/Linux) | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | 没 Python,双击就跑 |
 | Docker | `docker run -p 8765:8765 ghcr.io/yuruotong1/automate:latest` | NAS / 服务器 |
 | 浏览器扩展 | [`extension/`](./extension/) | 接管你正在用的 Chrome |
-| Android APK | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | hub 的可选查看端 |
+| 手机 (PWA) | 浏览器打开 hub 地址 → 加入主屏幕 | iOS / Android 都行,免上架 |
 
 装完跑 `automate`,浏览器自动开。配模型 + 粘 key + (可选) 接 AI 客户端,
 两三分钟搞定。

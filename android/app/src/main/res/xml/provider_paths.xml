@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Where the WebView's DownloadListener writes the downloaded APK
-         before we hand it to the system installer. -->
-    <cache-path name="updates" path="updates/" />
-</paths>

@@ -32,15 +32,37 @@ document.addEventListener("alpine:init", () => {
     moreOpen: false,
     settingsOpen: false,
 
-    // Quick "I'm using…" picker on the Connect tab.
+    // Quick "I'm using…" picker on the Connect tab. Each card declares
+    // which transport it can actually speak (so we don't promise MCP to
+    // a client that can't load MCP servers — Kimi Code, ChatGPT web, …)
+    // plus a "where" hint pointing at the specific config file or UI
+    // surface the user has to edit.
     aiClient: localStorage.getItem("automate-ai-client") || "claude_code",
     aiClients: [
-      { id: "claude_code", label: "Claude Code",            mode: "mcp",   icon: "🧰" },
-      { id: "cursor",      label: "Cursor / Cline",         mode: "mcp",   icon: "🧰" },
-      { id: "kimi_k2",     label: "Kimi K2 / Kimi Code",    mode: "mcp",   icon: "🧰" },
-      { id: "chatgpt",     label: "ChatGPT custom GPTs",    mode: "http",  icon: "🌐" },
-      { id: "ollama",      label: "Ollama / web chat",      mode: "bridge",icon: "🐚" },
-      { id: "other",       label: "Something else",         mode: "discover", icon: "📡" },
+      { id: "claude_code", label: "Claude Code",
+        mode: "mcp",   icon: "🧰",
+        where: "Edit ~/.claude/mcp.json (or run `claude mcp add`). Restart Claude Code." },
+      { id: "cursor",      label: "Cursor",
+        mode: "mcp",   icon: "🧰",
+        where: "Edit ~/.cursor/mcp.json. Reload window. Tools show up in Composer." },
+      { id: "cline",       label: "Cline (VS Code)",
+        mode: "mcp",   icon: "🧰",
+        where: "Cline panel → ⚙ → MCP Servers → Edit settings. Reload VS Code." },
+      { id: "kimi_k2",     label: "Kimi K2 (web / API)",
+        mode: "http",  icon: "🌐",
+        where: "Moonshot 工作台 / Kimi 智能体: paste this into the system-prompt field." },
+      { id: "kimi_code",   label: "Kimi Code (CLI)",
+        mode: "bridge", icon: "🐚",
+        where: "Kimi for Coding CLI doesn't load MCP servers. Save the script, then paste the system prompt into your session." },
+      { id: "chatgpt",     label: "ChatGPT custom GPT",
+        mode: "http",  icon: "🌐",
+        where: "ChatGPT → Create a GPT → Instructions field. Or use Actions with the OpenAPI URL." },
+      { id: "ollama",      label: "Ollama / web chat",
+        mode: "bridge",icon: "🐚",
+        where: "Save the script as ~/bin/am, paste the system prompt into your model's prompt." },
+      { id: "other",       label: "Something else",
+        mode: "discover", icon: "📡",
+        where: "Hand the AI the OpenAPI URL — it can discover the surface itself." },
     ],
     pickAiClient(id) {
       this.aiClient = id;
@@ -48,6 +70,9 @@ document.addEventListener("alpine:init", () => {
     },
     get aiClientMode() {
       return this.aiClients.find(c => c.id === this.aiClient)?.mode || "mcp";
+    },
+    get aiClientWhere() {
+      return this.aiClients.find(c => c.id === this.aiClient)?.where || "";
     },
     active: localStorage.getItem("automate-active-tab") || "home",
     region: "",
@@ -221,7 +246,10 @@ document.addEventListener("alpine:init", () => {
     bridgeInfo: null,
     bridgeTokenShown: false,
     // ---- v4.5.7: connect-instructions copy text ----
-    connectInfo: null,
+    // Named `installInfo` (not `connectInfo`) because there's a separate
+    // `connectInfo` lower down that holds /api/connect snippet data —
+    // they used to clobber each other.
+    installInfo: null,
     connectCopied: false,
 
     async loadBridge() {
@@ -236,17 +264,17 @@ document.addEventListener("alpine:init", () => {
         // instant — the markdown is small (a few KB) and we want zero
         // latency between click and clipboard.
         const ci = await api(`/api/channels/connect-instructions?public_url=${encodeURIComponent(base)}`);
-        this.connectInfo = { ...ci, base };
+        this.installInfo = { ...ci, base };
       } catch (e) {
         this.bridgeInfo = null;        // local-only mode: no bridge to show
-        this.connectInfo = null;
+        this.installInfo = null;
       }
     },
 
     async copyConnectInstructions() {
-      if (!this.connectInfo?.markdown) return;
+      if (!this.installInfo?.markdown) return;
       try {
-        await navigator.clipboard.writeText(this.connectInfo.markdown);
+        await navigator.clipboard.writeText(this.installInfo.markdown);
         this.connectCopied = true;
         setTimeout(() => { this.connectCopied = false; }, 2000);
       } catch (e) {
@@ -310,13 +338,6 @@ document.addEventListener("alpine:init", () => {
     cloudBusy: false,
     cloudResult: null,
 
-    get isAndroid() {
-      // Detect Android (real APK or Chrome on Android). The TWA APK can
-      // download files via WebView's DownloadListener (wired in
-      // MainActivity.kt) which lets us trigger the system installer.
-      return /Android/i.test(navigator.userAgent);
-    },
-
     saveUpdateMirror() {
       const v = (this.updateMirror || "").trim().replace(/\/$/, "");
       if (v) localStorage.setItem("automate-update-mirror", v);
@@ -360,8 +381,7 @@ document.addEventListener("alpine:init", () => {
             const host = this.updateMirror.replace(/\/$/, "");
             url = (host.startsWith("http") ? host : `https://${host}`) + "/" + url;
           }
-          if (name.endsWith(".apk")) downloads.android = url;
-          else if (name.endsWith("windows-x64.zip")) downloads.windows = url;
+          if (name.endsWith("windows-x64.zip")) downloads.windows = url;
           else if (name.endsWith("macos-arm64.zip") || name.endsWith("darwin-arm64.zip")) downloads.macos = url;
           else if (name.endsWith("linux-x64.tar.gz")) downloads.linux = url;
           else if (name.endsWith(".whl")) downloads.wheel = url;
@@ -389,29 +409,10 @@ document.addEventListener("alpine:init", () => {
       return false;
     },
 
-    apkDownloading: false,
-
     currentVersion() {
       // Hub status wins (definitive), then the bundled version.js,
       // then last-resort empty. Lets the UI work in local mode too.
       return this.status?.version || (window.AUTOMATE_VERSION || "?");
-    },
-
-    downloadApk() {
-      const url = this.updateInfo?.download_urls?.android;
-      if (!url) return;
-      this.apkDownloading = true;
-      // On Android, navigating to an .apk URL triggers WebView's
-      // DownloadListener (MainActivity.kt) which downloads via
-      // DownloadManager and launches the system installer on
-      // completion. v4.5.5: shouldOverrideUrlLoading explicitly skips
-      // .apk URLs so they actually reach DownloadListener instead of
-      // being kicked to the system browser.
-      window.location.href = url;
-      // The download is async (DownloadManager) and progress lives
-      // in Android's notification shade. Re-enable the button after
-      // a beat so a stuck download isn't permanently locked out.
-      setTimeout(() => { this.apkDownloading = false; }, 8000);
     },
 
     async loadCloudInfo() {
@@ -631,7 +632,7 @@ document.addEventListener("alpine:init", () => {
     ],
 
     async init() {
-      // Persist active tab so re-opening the APK lands where you left off.
+      // Persist active tab so reopening the SPA lands where you left off.
       this.$watch?.("active", v => v && localStorage.setItem("automate-active-tab", v));
 
       // First, try to talk to a hub. If it works, we're in connected mode.
@@ -1214,11 +1215,11 @@ function urlBase64ToUint8Array(base64) {
 }
 
 async function api(path, method = "GET", body) {
-  // Pre-flight: catch the most common cause of "Failed to fetch" on
-  // mobile — the SPA was loaded from file:///android_asset but the user
-  // never told us where their hub lives. fetch("/api/...") against a
-  // file:// origin throws a TypeError that surfaces as the cryptic
-  // "Failed to fetch". Give a real error instead.
+  // Pre-flight: catch the most common cause of "Failed to fetch" — the
+  // SPA was loaded from file:// but the user never told us where their
+  // hub lives. fetch("/api/...") against a file:// origin throws a
+  // TypeError that surfaces as the cryptic "Failed to fetch". Give a
+  // real error instead.
   const base = hubBase();
   if (!base && location.protocol === "file:") {
     throw new Error(

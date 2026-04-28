@@ -16,8 +16,8 @@
   <script src="version.js"></script>
   <script src="local-store.js"></script>
   <script>
-    // Service workers don't run from file:// so this is a no-op in the APK;
-    // it only kicks in when the SPA is served over http(s).
+    // Service workers don't run from file:// — only kicks in when the SPA
+    // is served over http(s).
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("service-worker.js").catch(() => {});
@@ -276,8 +276,8 @@
     </div>
   </header>
 
-  <!-- v4.5.3: in-app notice modal — replaces native alert() which on
-       Android WebView shows a scary "网址为'file://'的网页显示" header. -->
+  <!-- v4.5.3: in-app notice modal — replaces native alert() which the
+       browser garnishes with a scary origin/title header. -->
   <div x-show="notice.open" x-cloak x-transition.opacity
        class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
        @click.self="dismissNotice()">
@@ -349,13 +349,13 @@
             <div class="mt-2 space-y-2">
               <div>
                 <div class="text-[10px] text-zinc-500">MCP URL</div>
-                <input :value="connectInfo?.mcp_url || '...'" readonly
+                <input :value="installInfo?.mcp_url || '...'" readonly
                        class="w-full border rounded-md px-2 py-1.5 font-mono text-[11px] bg-zinc-50" />
               </div>
               <div>
                 <div class="text-[10px] text-zinc-500">Bearer token</div>
                 <div class="flex gap-2">
-                  <input :value="connectInfo?.token || '...'" readonly
+                  <input :value="installInfo?.token || '...'" readonly
                          :type="bridgeTokenShown ? 'text' : 'password'"
                          class="flex-1 border rounded-md px-2 py-1.5 font-mono text-[11px] bg-zinc-50 min-w-0" />
                   <button @click="bridgeTokenShown = !bridgeTokenShown"
@@ -464,13 +464,7 @@
                 <strong>v<span x-text="updateInfo.latest"></span></strong> is available
                 (you have v<span x-text="currentVersion()"></span>).
               </div>
-              <button x-show="isAndroid && updateInfo?.download_urls?.android"
-                      @click="downloadApk()" :disabled="apkDownloading"
-                      class="w-full bg-zinc-900 text-white rounded-md py-2 text-sm disabled:opacity-50">
-                <span x-show="!apkDownloading">Download &amp; install in app</span>
-                <span x-show="apkDownloading">Downloading…</span>
-              </button>
-              <a x-show="!isAndroid && updateInfo?.release_notes_url"
+              <a x-show="updateInfo?.release_notes_url"
                  :href="updateInfo.release_notes_url" target="_blank"
                  class="block text-center bg-zinc-900 text-white rounded-md py-2 text-sm">
                 Open release page
@@ -553,32 +547,18 @@
         <div class="text-2xl">→</div>
       </button>
 
-      <!-- Bots: alternate entry points -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <div class="text-xs uppercase tracking-wider text-zinc-500">Or chat from these channels</div>
-          <button @click="active = 'bots'" class="text-xs text-blue-600 hover:underline">Configure →</button>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-          <template x-for="b in botCatalog.slice(0, 4)" :key="b.id">
-            <button @click="active = 'bots'; openBot(b.id)"
-                    class="bg-white border rounded-lg p-3 text-left hover:border-zinc-400 transition">
-              <div class="text-xs font-medium leading-tight" x-text="b.label"></div>
-              <div class="text-[10px] mt-1"
-                   :class="botInstance(b.id).enabled ? 'text-emerald-600' : 'text-zinc-400'"
-                   x-text="botInstance(b.id).enabled ? '● ' + botInstance(b.id).status : 'not connected'"></div>
-            </button>
-          </template>
-        </div>
-      </div>
-
       <!-- Power-user path: hand autoMate to an external AI -->
-      <details class="text-xs text-zinc-500">
-        <summary class="cursor-pointer hover:text-zinc-700">Power user · use autoMate from Claude Code / Cursor / external AI →</summary>
-        <div class="mt-2">
-          <button @click="active = 'connect'" class="text-blue-600 underline">Open Connect AI tab →</button>
+      <button @click="active = 'connect'"
+              class="w-full bg-white border rounded-2xl p-4 text-left hover:border-zinc-400 transition flex items-center gap-4">
+        <div class="text-2xl">🔌</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-sm">Use autoMate from Claude Code / Cursor / Cline / Kimi</div>
+          <div class="text-[11px] text-zinc-500 leading-snug mt-0.5">
+            Copy one install text, paste it into your AI client. autoMate becomes its tool source.
+          </div>
         </div>
-      </details>
+        <div class="text-zinc-400">→</div>
+      </button>
 
       <!-- Quick actions -->
       <div>
@@ -1333,9 +1313,51 @@
         </p>
       </div>
 
-      <!-- "I'm using ___" picker -->
-      <div class="mb-4">
-        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">I'm using…</div>
+      <!-- Primary path: one giant button copies a per-client install guide
+           with URL + token already filled in. Hand it to your AI assistant
+           or follow it yourself — every popular client is covered. -->
+      <div x-show="installInfo?.markdown" class="bg-white border-2 border-zinc-900 rounded-xl p-4 mb-4">
+        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-1">Recommended</div>
+        <h2 class="font-semibold text-sm sm:text-base mb-2">Copy install text — works for every MCP client</h2>
+        <p class="text-[11px] sm:text-xs text-zinc-600 leading-snug mb-3">
+          One copy → paste into Claude / ChatGPT / Kimi and say "set this up
+          for me", or follow the steps yourself. Includes URL + token + the
+          right config file path for Claude Desktop, Cursor, Cline, OpenClaw,
+          and any other MCP client.
+        </p>
+        <button @click="copyConnectInstructions()"
+                class="w-full bg-zinc-900 text-white text-sm py-3 rounded-lg font-medium">
+          <span x-show="!connectCopied">📋 Copy install text (all clients)</span>
+          <span x-show="connectCopied">✓ Copied — paste into any AI</span>
+        </button>
+        <details class="mt-3">
+          <summary class="text-xs text-zinc-500 cursor-pointer">Show connection details</summary>
+          <div class="mt-2 space-y-2 text-xs">
+            <div>
+              <div class="text-[10px] text-zinc-500">MCP URL</div>
+              <input :value="installInfo?.mcp_url || '...'" readonly
+                     class="w-full bg-zinc-50 border rounded px-2 py-1 text-[11px] font-mono" />
+            </div>
+            <div>
+              <div class="text-[10px] text-zinc-500">Token</div>
+              <div class="flex gap-1">
+                <input :value="installInfo?.token || '...'" readonly
+                       :type="bridgeTokenShown ? 'text' : 'password'"
+                       class="flex-1 bg-zinc-50 border rounded px-2 py-1 text-[11px] font-mono" />
+                <button @click="bridgeTokenShown = !bridgeTokenShown"
+                        class="text-[11px] border rounded px-2 hover:bg-zinc-50"
+                        x-text="bridgeTokenShown ? 'Hide' : 'Show'"></button>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Secondary path: per-client picker. For users who just want the
+           one snippet that fits the AI in front of them, without reading
+           the long markdown above. -->
+      <div class="mb-3">
+        <div class="text-xs uppercase tracking-wider text-zinc-500 mb-2">Or pick a specific client</div>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <template x-for="c in aiClients" :key="c.id">
             <button @click="pickAiClient(c.id)"
@@ -1351,13 +1373,18 @@
 
       <!-- The selected snippet, large and copy-friendly -->
       <div x-show="connectInfo?.modes?.[aiClientMode]"
-           class="bg-white border-2 border-zinc-900 rounded-xl overflow-hidden mb-4">
+           class="bg-white border rounded-xl overflow-hidden mb-4">
         <div class="p-4 bg-zinc-50 border-b">
           <div class="flex items-start justify-between gap-2 mb-2">
             <div class="min-w-0">
               <h2 class="font-semibold text-sm sm:text-base" x-text="connectInfo?.modes?.[aiClientMode]?.title"></h2>
               <p class="text-[11px] sm:text-xs text-zinc-500 mt-0.5 leading-snug" x-text="connectInfo?.modes?.[aiClientMode]?.subtitle"></p>
             </div>
+          </div>
+          <!-- Per-client "where to put it" — answers the actual user question -->
+          <div x-show="aiClientWhere"
+               class="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3 text-[11px] sm:text-xs text-amber-900 leading-snug">
+            <strong>Where to paste:</strong> <span x-text="aiClientWhere"></span>
           </div>
           <button @click="copySnippet(aiClientMode, connectInfo?.modes?.[aiClientMode]?.content + (connectInfo?.modes?.[aiClientMode]?.prompt ? '\n\n' + connectInfo.modes[aiClientMode].prompt : ''))"
                   class="w-full bg-zinc-900 text-white text-sm py-3 rounded-lg font-medium">

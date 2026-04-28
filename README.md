@@ -72,7 +72,7 @@ See [docs/channels.md](./docs/channels.md) for details.
 | Standalone binary (Win / macOS / Linux) | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | No Python, double-click |
 | Docker | `docker run -p 8765:8765 ghcr.io/yuruotong1/automate:latest` | Headless box / NAS |
 | Browser extension | [`extension/`](./extension/) | Drive your real Chrome |
-| Android APK | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | Optional viewer for the hub |
+| Phone (PWA) | Open the hub URL in mobile Chrome / Safari → Add to Home Screen | iOS or Android, no app store |
 
 After install:
 
@@ -141,7 +141,6 @@ autoMate/
 │  ├─ audio.py               # transcription provider abstraction
 │  ├─ auth.py                # autoMate Cloud session (Pro tier hook)
 │  └─ {notes,files,reminders,memory,push}.py
-├─ android/                  # native Android WebView app (APK)
 ├─ extension/                # Chrome MV3 extension
 ├─ docs/{channels,cloud,relay,mobile,sync}.md
 ├─ Dockerfile
