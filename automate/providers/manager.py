@@ -5,6 +5,7 @@ from ..store import Database
 from .anthropic import AnthropicClient
 from .base import ProviderClient
 from .catalog import CATALOG, get_spec
+from .litellm import LiteLLMClient
 from .openai_compat import OpenAICompatClient
 
 
@@ -58,6 +59,12 @@ class ProviderManager:
         if spec.requires_key and not row.get("api_key"):
             raise RuntimeError(f"Provider '{pid}' has no API key configured.")
         base_url = row.get("base_url") or spec.base_url
+        if spec.adapter == "litellm":
+            return LiteLLMClient(
+                model=row.get("default_model") or "",
+                api_key=row.get("api_key"),
+                api_base=base_url or None,
+            )
         if spec.adapter == "anthropic":
             return AnthropicClient(
                 base_url=base_url,

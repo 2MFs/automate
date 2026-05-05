@@ -60,6 +60,13 @@ CATALOG: tuple[ProviderSpec, ...] = (
         ("command-r-plus",)),
 
     # ---------- Aggregators / multi-model ----------
+    ProviderSpec("litellm", "LiteLLM Gateway", "global", "litellm",
+        "",
+        "https://docs.litellm.ai/docs/providers",
+        "",
+        ("openai/gpt-4o", "anthropic/claude-sonnet-4-6", "gemini/gemini-2.5-flash"),
+        requires_key=False,
+        notes="AI gateway to 100+ providers. Use provider-prefixed model names. API keys are read from provider env vars (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.) or set explicitly."),
     ProviderSpec("openrouter", "OpenRouter", "global", "openai_compat",
         "https://openrouter.ai/api/v1",
         "https://openrouter.ai/docs",
