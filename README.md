@@ -72,7 +72,7 @@ See [docs/channels.md](./docs/channels.md) for details.
 | Standalone binary (Win / macOS / Linux) | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | No Python, double-click |
 | Docker | `docker run -p 8765:8765 ghcr.io/yuruotong1/automate:latest` | Headless box / NAS |
 | Browser extension | [`extension/`](./extension/) | Drive your real Chrome |
-| Android APK | [Releases](https://github.com/yuruotong1/autoMate/releases/latest) | Optional viewer for the hub |
+| Phone (PWA) | Open the hub URL in mobile Chrome / Safari → Add to Home Screen | iOS or Android, no app store |
 
 After install:
 
@@ -112,15 +112,20 @@ DeepSeek · Moonshot Kimi · 通义 · 豆包 · GLM · 百川 · Yi · MiniMax 
 ## IM channels (WeChat / Telegram / WhatsApp / ...)
 
 We don't ship per-platform bots ourselves. Run [OpenClaw](https://github.com/openclaw/openclaw)
-alongside autoMate — it has the official Tencent WeChat plugin for
-*微信个人助手* (no account-takeover, no ban risk), plus Telegram /
-WhatsApp / Slack / Discord / Signal / iMessage. autoMate plugs in as
-its tool source via the MCP setup above. The user talks in their
-chat platform → OpenClaw routes → OpenClaw's agent calls autoMate
-when it needs your data.
+alongside autoMate. The **Bots tab** in the SPA walks you through it
+step-by-step:
 
-The legacy bots in `automate/bots/` (telegram / wechat_oa / wecom)
-are frozen but still ship for backward compatibility.
+1. Install OpenClaw + the [openclaw-wechat](https://github.com/freestylefly/openclaw-wechat) plugin
+2. Drop the auto-generated `bundle-mcp` config snippet into `~/.openclaw/openclaw.json5` — autoMate's MCP URL + bearer token are pre-filled
+3. `openclaw config set channels.wechat.*` — apiKey, proxyUrl, webhookHost
+4. `openclaw gateway start` — scan the QR with WeChat
+
+OpenClaw also speaks Telegram / Slack / Discord / Signal / iMessage —
+same step 2 (autoMate as MCP tool source) applies.
+
+The legacy bots in `automate/bots/` (telegram / wechat_oa / wecom) are
+direct-webhook adapters, kept for users who can't run OpenClaw. They
+appear under **Bots → Direct platform webhooks (advanced / legacy)**.
 
 ## Project layout
 
@@ -141,7 +146,6 @@ autoMate/
 │  ├─ audio.py               # transcription provider abstraction
 │  ├─ auth.py                # autoMate Cloud session (Pro tier hook)
 │  └─ {notes,files,reminders,memory,push}.py
-├─ android/                  # native Android WebView app (APK)
 ├─ extension/                # Chrome MV3 extension
 ├─ docs/{channels,cloud,relay,mobile,sync}.md
 ├─ Dockerfile

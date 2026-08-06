@@ -7,7 +7,6 @@ document.addEventListener("alpine:init", () => {
       { id: "notes",        label: "Notes" },
       { id: "files",        label: "Files" },
       { id: "reminders",    label: "Reminders" },
-      { id: "connect",      label: "Connect AI" },
       { id: "integrations", label: "Tools" },
       { id: "models",       label: "Models" },
       { id: "help",         label: "Help" },
@@ -24,7 +23,6 @@ document.addEventListener("alpine:init", () => {
     moreTabs: [
       { id: "files",        label: "Files",      icon: "📁" },
       { id: "reminders",    label: "Reminders",  icon: "⏰" },
-      { id: "connect",      label: "Connect AI", icon: "🔌" },
       { id: "integrations", label: "Tools",      icon: "🧰" },
       { id: "models",       label: "Models",     icon: "🧠" },
       { id: "help",         label: "Help",       icon: "?" },
@@ -32,23 +30,6 @@ document.addEventListener("alpine:init", () => {
     moreOpen: false,
     settingsOpen: false,
 
-    // Quick "I'm using…" picker on the Connect tab.
-    aiClient: localStorage.getItem("automate-ai-client") || "claude_code",
-    aiClients: [
-      { id: "claude_code", label: "Claude Code",            mode: "mcp",   icon: "🧰" },
-      { id: "cursor",      label: "Cursor / Cline",         mode: "mcp",   icon: "🧰" },
-      { id: "kimi_k2",     label: "Kimi K2 / Kimi Code",    mode: "mcp",   icon: "🧰" },
-      { id: "chatgpt",     label: "ChatGPT custom GPTs",    mode: "http",  icon: "🌐" },
-      { id: "ollama",      label: "Ollama / web chat",      mode: "bridge",icon: "🐚" },
-      { id: "other",       label: "Something else",         mode: "discover", icon: "📡" },
-    ],
-    pickAiClient(id) {
-      this.aiClient = id;
-      localStorage.setItem("automate-ai-client", id);
-    },
-    get aiClientMode() {
-      return this.aiClients.find(c => c.id === this.aiClient)?.mode || "mcp";
-    },
     active: localStorage.getItem("automate-active-tab") || "home",
     region: "",
     status: null,
@@ -79,10 +60,9 @@ document.addEventListener("alpine:init", () => {
     testResult: null,
 
     editingIntegration: null,
-    integrationForm: { token: "", client_id: "", client_secret: "" },
+    integrationForm: { token: "" },
     connecting: false,
     connectResult: null,
-    showOAuthAdvanced: false,
     integrationFilter: "",
     botForm: {},
 
@@ -220,9 +200,10 @@ document.addEventListener("alpine:init", () => {
     // ---- v4.5.6: channels bridge ----
     bridgeInfo: null,
     bridgeTokenShown: false,
-    // ---- v4.5.7: connect-instructions copy text ----
-    connectInfo: null,
-    connectCopied: false,
+    // Install instructions for plugging autoMate into OpenClaw / other
+    // MCP gateways. Loaded by loadBridge() with mcp_url + bearer token.
+    installInfo: null,
+    installCopied: false,
 
     async loadBridge() {
       try {
@@ -236,25 +217,80 @@ document.addEventListener("alpine:init", () => {
         // instant — the markdown is small (a few KB) and we want zero
         // latency between click and clipboard.
         const ci = await api(`/api/channels/connect-instructions?public_url=${encodeURIComponent(base)}`);
-        this.connectInfo = { ...ci, base };
+        this.installInfo = { ...ci, base };
       } catch (e) {
         this.bridgeInfo = null;        // local-only mode: no bridge to show
-        this.connectInfo = null;
+        this.installInfo = null;
       }
     },
 
-    async copyConnectInstructions() {
-      if (!this.connectInfo?.markdown) return;
+    async copyInstallText() {
+      if (!this.installInfo?.markdown) return;
       try {
-        await navigator.clipboard.writeText(this.connectInfo.markdown);
-        this.connectCopied = true;
-        setTimeout(() => { this.connectCopied = false; }, 2000);
+        await navigator.clipboard.writeText(this.installInfo.markdown);
+        this.installCopied = true;
+        setTimeout(() => { this.installCopied = false; }, 2000);
       } catch (e) {
         this.showNotice({
           icon: "📋", title: "Clipboard blocked",
           body: "Your browser blocked clipboard access. Open the connection details below and copy the URL + token manually.",
         });
       }
+    },
+    async copyText(text) {
+      if (!text) return false;
+      try { await navigator.clipboard.writeText(text); return true; }
+      catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } finally { document.body.removeChild(ta); }
+        return true;
+      }
+    },
+
+    // OpenClaw bundle-mcp config block, ready to drop into
+    // ~/.openclaw/openclaw.json5 — pre-filled with the live MCP URL +
+    // bearer token of this hub. Returns "" until installInfo loads.
+    get openclawConfigSnippet() {
+      if (!this.installInfo?.mcp_url) return "";
+      const url = this.installInfo.mcp_url;
+      const token = this.installInfo.token || "<token>";
+      return [
+        "{",
+        "  plugins: {",
+        "    \"bundle-mcp\": {",
+        "      servers: {",
+        "        automate: {",
+        "          transport: \"streamable-http\",",
+        `          url: "${url}",`,
+        `          headers: { Authorization: "Bearer ${token}" },`,
+        "        },",
+        "      },",
+        "    },",
+        "  },",
+        "}",
+      ].join("\n");
+    },
+    openclawSnippetCopied: false,
+    async copyOpenclawSnippet() {
+      const ok = await this.copyText(this.openclawConfigSnippet);
+      if (!ok) return;
+      this.openclawSnippetCopied = true;
+      setTimeout(() => { this.openclawSnippetCopied = false; }, 2000);
+    },
+    mcpUrlCopied: false,
+    async copyMcpUrl() {
+      const ok = await this.copyText(this.installInfo?.mcp_url || "");
+      if (!ok) return;
+      this.mcpUrlCopied = true;
+      setTimeout(() => { this.mcpUrlCopied = false; }, 2000);
+    },
+    mcpTokenCopied: false,
+    async copyMcpToken() {
+      const ok = await this.copyText(this.installInfo?.token || "");
+      if (!ok) return;
+      this.mcpTokenCopied = true;
+      setTimeout(() => { this.mcpTokenCopied = false; }, 2000);
     },
     async copyBridge(field) {
       if (!this.bridgeInfo?.[field]) return;
@@ -310,13 +346,6 @@ document.addEventListener("alpine:init", () => {
     cloudBusy: false,
     cloudResult: null,
 
-    get isAndroid() {
-      // Detect Android (real APK or Chrome on Android). The TWA APK can
-      // download files via WebView's DownloadListener (wired in
-      // MainActivity.kt) which lets us trigger the system installer.
-      return /Android/i.test(navigator.userAgent);
-    },
-
     saveUpdateMirror() {
       const v = (this.updateMirror || "").trim().replace(/\/$/, "");
       if (v) localStorage.setItem("automate-update-mirror", v);
@@ -360,8 +389,7 @@ document.addEventListener("alpine:init", () => {
             const host = this.updateMirror.replace(/\/$/, "");
             url = (host.startsWith("http") ? host : `https://${host}`) + "/" + url;
           }
-          if (name.endsWith(".apk")) downloads.android = url;
-          else if (name.endsWith("windows-x64.zip")) downloads.windows = url;
+          if (name.endsWith("windows-x64.zip")) downloads.windows = url;
           else if (name.endsWith("macos-arm64.zip") || name.endsWith("darwin-arm64.zip")) downloads.macos = url;
           else if (name.endsWith("linux-x64.tar.gz")) downloads.linux = url;
           else if (name.endsWith(".whl")) downloads.wheel = url;
@@ -389,29 +417,10 @@ document.addEventListener("alpine:init", () => {
       return false;
     },
 
-    apkDownloading: false,
-
     currentVersion() {
       // Hub status wins (definitive), then the bundled version.js,
       // then last-resort empty. Lets the UI work in local mode too.
       return this.status?.version || (window.AUTOMATE_VERSION || "?");
-    },
-
-    downloadApk() {
-      const url = this.updateInfo?.download_urls?.android;
-      if (!url) return;
-      this.apkDownloading = true;
-      // On Android, navigating to an .apk URL triggers WebView's
-      // DownloadListener (MainActivity.kt) which downloads via
-      // DownloadManager and launches the system installer on
-      // completion. v4.5.5: shouldOverrideUrlLoading explicitly skips
-      // .apk URLs so they actually reach DownloadListener instead of
-      // being kicked to the system browser.
-      window.location.href = url;
-      // The download is async (DownloadManager) and progress lives
-      // in Android's notification shade. Re-enable the button after
-      // a beat so a stuck download isn't permanently locked out.
-      setTimeout(() => { this.apkDownloading = false; }, 8000);
     },
 
     async loadCloudInfo() {
@@ -448,8 +457,6 @@ document.addEventListener("alpine:init", () => {
     ws: null,
 
     runs: [],
-    connectInfo: null,
-    copiedKey: null,
     hubBaseInput: "",
 
     // ---- v4.2: smart-NAS local-mode ----
@@ -489,25 +496,6 @@ document.addEventListener("alpine:init", () => {
     },
     get currentHubBase() {
       return localStorage.getItem("automate-hub-base") || "(this server)";
-    },
-
-    async loadConnectInfo() {
-      try { this.connectInfo = await api("/api/connect"); }
-      catch (e) { console.warn(e); }
-    },
-    async copySnippet(key, text) {
-      try {
-        await navigator.clipboard.writeText(text);
-        this.copiedKey = key;
-        setTimeout(() => { if (this.copiedKey === key) this.copiedKey = null; }, 1600);
-      } catch (e) {
-        // Fallback for old browsers
-        const ta = document.createElement("textarea");
-        ta.value = text; document.body.appendChild(ta); ta.select();
-        document.execCommand("copy"); document.body.removeChild(ta);
-        this.copiedKey = key;
-        setTimeout(() => { if (this.copiedKey === key) this.copiedKey = null; }, 1600);
-      }
     },
 
     quickPrompts: [
@@ -583,40 +571,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    integrationHints: {
-      github:     { label: "Personal Access Token",       url: "https://github.com/settings/tokens/new?scopes=repo,read:user,read:org", hint: "Settings → Developer settings → Personal access tokens (classic). Tick: repo, read:user, read:org." },
-      gitlab:     { label: "Personal Access Token",       url: "https://gitlab.com/-/user_settings/personal_access_tokens", hint: "Profile → Access tokens. Tick api scope." },
-      gitee:      { label: "Personal Access Token",       url: "https://gitee.com/profile/personal_access_tokens", hint: "用户中心 → 个人访问令牌。" },
-      notion:     { label: "Internal Integration Token",  url: "https://www.notion.so/my-integrations", hint: "Create a new internal integration, copy its secret. Then share each page/db with that integration." },
-      slack:      { label: "Bot User OAuth Token",        url: "https://api.slack.com/apps", hint: "Create an app → OAuth & Permissions → install to workspace → copy 'Bot User OAuth Token' (xoxb-…)." },
-      linear:     { label: "Personal API Key",            url: "https://linear.app/settings/api", hint: "Settings → API → Create new key." },
-      jira:       { label: "API Token",                   url: "https://id.atlassian.com/manage-profile/security/api-tokens", hint: "Atlassian account → Security → API tokens." },
-      confluence: { label: "API Token",                   url: "https://id.atlassian.com/manage-profile/security/api-tokens", hint: "Same as Jira — uses your Atlassian token." },
-      trello:     { label: "API Key",                     url: "https://trello.com/app-key", hint: "Trello App Key page — copy the Key." },
-      asana:      { label: "Personal Access Token",       url: "https://app.asana.com/0/my-apps", hint: "Settings → Apps → Personal access tokens." },
-      monday:     { label: "API Token",                   url: "https://monday.com/developers/v2", hint: "Avatar menu → Developers → API." },
-      hubspot:    { label: "Private App Token",           url: "https://app.hubspot.com/private-apps/", hint: "Settings → Integrations → Private Apps → Create." },
-      airtable:   { label: "Personal Access Token",       url: "https://airtable.com/create/tokens", hint: "Token must be granted access to your bases." },
-      stripe:     { label: "Secret Key",                  url: "https://dashboard.stripe.com/apikeys", hint: "Use a restricted key in test mode first." },
-      shopify:    { label: "Admin API Token",             url: "https://admin.shopify.com/", hint: "Apps → Develop apps → Configure Admin API scopes → Install." },
-      telegram:   { label: "Bot Token",                   url: "https://t.me/BotFather", hint: "Talk to @BotFather → /newbot → copy the token." },
-      discord:    { label: "Bot Token",                   url: "https://discord.com/developers/applications", hint: "Create application → Bot → Reset Token." },
-      teams:      { label: "Incoming Webhook URL",        url: "https://learn.microsoft.com/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook", hint: "Channel → Connectors → Incoming Webhook → copy URL." },
-      zoom:       { label: "Server-to-Server credentials", url: "https://marketplace.zoom.us/develop/create", hint: "Create a Server-to-Server OAuth app. Paste 3 lines — see Advanced." },
-      twitter:    { label: "Bearer Token",                url: "https://developer.twitter.com/en/portal/projects-and-apps", hint: "Project → Keys and tokens → Bearer Token." },
-      sendgrid:   { label: "API Key",                     url: "https://app.sendgrid.com/settings/api_keys", hint: "Settings → API Keys → Full Access." },
-      mailchimp:  { label: "API Key",                     url: "https://us1.admin.mailchimp.com/account/api/", hint: "Account → Extras → API keys." },
-      twilio:     { label: "Auth Token",                  url: "https://console.twilio.com/", hint: "Console homepage → Account info → Auth Token." },
-      sentry:     { label: "Auth Token",                  url: "https://sentry.io/settings/account/api/auth-tokens/", hint: "Settings → API → Auth Tokens." },
-      feishu:     { label: "App ID + App Secret",         url: "https://open.feishu.cn/app", hint: "Open Platform → 创建应用. Paste two lines (see Advanced)." },
-      dingtalk:   { label: "Webhook URL",                 url: "https://open-dev.dingtalk.com/fe/app", hint: "群机器人 → 添加 → Webhook 地址。" },
-      wecom:      { label: "Webhook URL",                 url: "https://work.weixin.qq.com/", hint: "群聊 → 群机器人 → 添加 → 复制 Webhook 地址。" },
-      weixin:     { label: "App ID + App Secret",         url: "https://mp.weixin.qq.com/", hint: "公众平台 → 开发 → 基本配置. Paste two lines (see Advanced)." },
-      weibo:      { label: "Access Token",                url: "https://open.weibo.com/", hint: "微博开放平台 → 应用管理 → 高级信息 → access_token。" },
-      yuque:      { label: "Personal Token",              url: "https://www.yuque.com/settings/tokens", hint: "设置 → Token。" },
-      amap:       { label: "Web Service Key",             url: "https://console.amap.com/dev/key/app", hint: "高德开放平台 → 应用管理 → Web服务 类型的 Key。" },
-    },
-
     helpExamples: [
       { kind: "shell",        text: "git status this folder and summarise what changed",
         note: "Uses shell.exec — runs from the folder where automate started." },
@@ -631,7 +585,7 @@ document.addEventListener("alpine:init", () => {
     ],
 
     async init() {
-      // Persist active tab so re-opening the APK lands where you left off.
+      // Persist active tab so reopening the SPA lands where you left off.
       this.$watch?.("active", v => v && localStorage.setItem("automate-active-tab", v));
 
       // First, try to talk to a hub. If it works, we're in connected mode.
@@ -731,7 +685,6 @@ document.addEventListener("alpine:init", () => {
         this.loadIntegrations(),
         this.loadTools(),
         this.loadRuns(),
-        this.loadConnectInfo(),
         this.loadNotes(),
         this.loadFiles(),
         this.loadReminders(),
@@ -1095,15 +1048,9 @@ document.addEventListener("alpine:init", () => {
     // ---- integrations ----
     openIntegration(i) {
       this.editingIntegration = i;
-      const meta = i.metadata || {};
-      this.integrationForm = {
-        token: "",
-        client_id: meta.client_id || "",
-        client_secret: "",
-      };
+      this.integrationForm = { token: "" };
       this.connectResult = null;
       this.connecting = false;
-      this.showOAuthAdvanced = false;
     },
     closeIntegrationModal() {
       this.editingIntegration = null;
@@ -1128,23 +1075,65 @@ document.addEventListener("alpine:init", () => {
         this.connecting = false;
       }
     },
-    async saveOAuthApp() {
-      const id = this.editingIntegration.id;
-      await api(`/api/integrations/${id}/oauth-app`, "POST", {
-        client_id: this.integrationForm.client_id,
-        client_secret: this.integrationForm.client_secret,
-      });
-      await this.loadIntegrations();
-    },
+
+    // Open the OAuth popup and listen for the success postMessage from
+    // the callback page. The popup runs window.opener.postMessage() after
+    // the token is stored, so by the time we hear back the connections
+    // table already has the new row — we just need to refresh.
     async beginOAuth() {
-      // Persist credentials first (in case the user typed without clicking Save).
-      if (this.integrationForm.client_id && this.integrationForm.client_secret) {
-        await this.saveOAuthApp();
-      }
       const id = this.editingIntegration.id;
-      const r = await api(`/api/integrations/${id}/connect`);
-      window.open(r.authorize_url, "_blank", "width=600,height=720");
+      this.connecting = true;
+      this.connectResult = null;
+      let r;
+      try {
+        r = await api(`/api/integrations/${id}/connect`);
+      } catch (e) {
+        this.connecting = false;
+        // 503 typically means the broker is unreachable. Surface a
+        // clear pointer to the API-key fallback rather than leaving the
+        // user staring at a stack trace.
+        const fallbackHint = this.editingIntegration?.token_help
+          ? " You can paste an API key below as a fallback."
+          : "";
+        this.connectResult = { ok: false, message: (e.message || "couldn't start OAuth") + fallbackHint };
+        return;
+      }
+      const popup = window.open(r.authorize_url, "automate-oauth", "width=560,height=720");
+      if (!popup) {
+        this.connecting = false;
+        this.connectResult = { ok: false, message: "Browser blocked the popup. Allow popups for this site and try again." };
+        return;
+      }
+      // The callback page postMessages back. We bind a one-shot listener.
+      const onMessage = async (ev) => {
+        if (ev.origin !== window.location.origin) return;
+        const m = ev.data || {};
+        if (m.kind !== "automate-oauth" || m.provider !== id) return;
+        window.removeEventListener("message", onMessage);
+        clearInterval(closedPoll);
+        this.connecting = false;
+        if (m.ok) {
+          await Promise.all([this.loadIntegrations(), this.loadTools(), this.refreshStatus()]);
+          this.connectResult = { ok: true, message: "Authorized. The provider's tools are now available." };
+          setTimeout(() => this.closeIntegrationModal(), 1200);
+        } else {
+          this.connectResult = { ok: false, message: m.message || "Authorization failed." };
+        }
+      };
+      window.addEventListener("message", onMessage);
+      // If the user closes the popup without finishing, stop spinning.
+      const closedPoll = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(closedPoll);
+          window.removeEventListener("message", onMessage);
+          if (this.connecting) {
+            this.connecting = false;
+            this.connectResult = { ok: false, message: "Popup closed before authorization completed." };
+          }
+        }
+      }, 800);
     },
+
     async disconnect() {
       const id = this.editingIntegration.id;
       await api(`/api/integrations/${id}/disconnect`, "POST");
@@ -1214,11 +1203,11 @@ function urlBase64ToUint8Array(base64) {
 }
 
 async function api(path, method = "GET", body) {
-  // Pre-flight: catch the most common cause of "Failed to fetch" on
-  // mobile — the SPA was loaded from file:///android_asset but the user
-  // never told us where their hub lives. fetch("/api/...") against a
-  // file:// origin throws a TypeError that surfaces as the cryptic
-  // "Failed to fetch". Give a real error instead.
+  // Pre-flight: catch the most common cause of "Failed to fetch" — the
+  // SPA was loaded from file:// but the user never told us where their
+  // hub lives. fetch("/api/...") against a file:// origin throws a
+  // TypeError that surfaces as the cryptic "Failed to fetch". Give a
+  // real error instead.
   const base = hubBase();
   if (!base && location.protocol === "file:") {
     throw new Error(

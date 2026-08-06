@@ -140,7 +140,6 @@ _PLATFORM_PATTERNS = {
     "windows": ("windows-x64.zip",),
     "macos":   ("macos-arm64.zip", "darwin-arm64.zip"),
     "linux":   ("linux-x64.tar.gz", "linux-amd64.tar.gz"),
-    "android": ("android.apk",),
     "wheel":   (".whl",),
     "sdist":   (".tar.gz",),    # generic; matched last so linux wins first
     "extension": ("extension.zip",),

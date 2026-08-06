@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">autoMate</string>
-    <string name="action_change_hub">Change hub URL</string>
-    <string name="action_reload">Reload</string>
-</resources>

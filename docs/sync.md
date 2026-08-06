@@ -12,7 +12,7 @@ that's what sync (or remote access) is for.
 Three deployment shapes, all interoperable:
 
 ```
-   ┌─ Phone APK / PWA ─┐                    ┌─ Laptop hub ─────┐
+   ┌─ Phone PWA ───────┐                    ┌─ Laptop hub ─────┐
    │ local IndexedDB   │  ◀─ sync ─▶        │ SQLite + tools   │
    └───────────────────┘                    └──────────────────┘
             ▲                                        ▲
@@ -36,9 +36,8 @@ The first two work today. The third works in v4.2.0 for **notes + memory**
 When the SPA loads and `/api/health` doesn't answer, it drops into
 **local mode**:
 
-- Notes and memory are stored in IndexedDB (per-origin, so APK and PWA
-  have separate stores — that's intentional)
-- Files, reminders, models, tools, and Connect AI tabs show a "needs hub"
+- Notes and memory are stored in IndexedDB (per-origin)
+- Files, reminders, models, tools, and Bots tabs show a "needs hub"
   card; nothing's pretending to work
 - A yellow banner across the top has a hub-URL input + "Sync & connect"
 
