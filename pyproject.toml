@@ -38,6 +38,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# LiteLLM AI gateway (100+ providers via unified interface)
+litellm = ["litellm>=1.65,<1.85"]
 # Browser execution (Playwright). After install: `python -m playwright install chromium`
 browser = ["playwright>=1.40"]
 # Desktop execution (screenshot / mouse / keyboard). Skip on headless servers.
